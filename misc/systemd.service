@@ -1,0 +1,11 @@
+[Unit]
+Description=Daemon for Sleepy
+
+[Service]
+User=root
+WorkingDirectory=/opt/sleepy-daemon
+ExecStart=./launch-linux.sh &
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

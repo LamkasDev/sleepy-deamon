@@ -1,0 +1,10 @@
+#!/sbin/openrc-run
+
+start() {
+    cd /opt/sleepy-daemon
+    ./launcher-linux.sh &
+}
+
+stop() {
+    killall sleepy-daemon
+}

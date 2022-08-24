@@ -1,0 +1,10 @@
+{
+    "token": "xxx",
+    "https": false,
+    "host": "localhost",
+    "apiPort": 8081,
+    "staticPort": 8082,
+    "port": 23365,
+    "reconnectTimeout": 5,
+    "databaseCredentials": []
+}

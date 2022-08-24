@@ -33,9 +33,9 @@ func UploadFile(handler *Handler, path string, data any) error {
 
 	var url string
 	if handler.Config.Https {
-		url = fmt.Sprintf("https://%s:%v/v1/daemon/file/upload", handler.Config.Host, handler.Config.APIPort)
+		url = fmt.Sprintf("https://%s/v1/daemon/file/upload", handler.Config.APIHost)
 	} else {
-		url = fmt.Sprintf("http://%s:%v/v1/daemon/file/upload", handler.Config.Host, handler.Config.APIPort)
+		url = fmt.Sprintf("http://%s/v1/daemon/file/upload", handler.Config.APIHost)
 	}
 
 	err = Upload(handler, url, values)

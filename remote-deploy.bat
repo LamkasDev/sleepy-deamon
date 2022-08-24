@@ -14,4 +14,4 @@ scp -i %SSH_KEY% .gitignore %SLEEPY_REMOTE_HOST%:%SLEEPY_REMOTE_PATH%
 scp -i %SSH_KEY% *.sh %SLEEPY_REMOTE_HOST%:%SLEEPY_REMOTE_PATH%
 scp -i %SSH_KEY% *.bat %SLEEPY_REMOTE_HOST%:%SLEEPY_REMOTE_PATH%
 scp -r -i %SSH_KEY% app %SLEEPY_REMOTE_HOST%:%SLEEPY_REMOTE_PATH%/%SLEEPY_VERSION%
-ssh -i %SSH_KEY% %SLEEPY_REMOTE_HOST% "cd %SLEEPY_REMOTE_PATH%; cd %SLEEPY_VERSION%; chmod +x build-linux.sh; ./build-linux.sh; cd ..; chmod +x launch-linux.sh; sh ./launch-linux.sh %QUIET%"
+ssh -i %SSH_KEY% %SLEEPY_REMOTE_HOST% "cd %SLEEPY_REMOTE_PATH%; chmod -R a+rx .; cd %SLEEPY_VERSION%; ./build-linux.sh; cd ..; sh ./launch-linux.sh %QUIET%"

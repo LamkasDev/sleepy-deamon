@@ -3,10 +3,9 @@ package main
 type Config struct {
 	Token               string                      `json:"token"`
 	Https               bool                        `json:"https"`
-	Host                string                      `json:"host"`
-	APIPort             uint16                      `json:"apiPort"`
-	StaticPort          uint16                      `json:"staticPort"`
-	Port                uint16                      `json:"port"`
+	DaemonHost          string                      `json:"daemonHost"`
+	APIHost             string                      `json:"apiHost"`
+	DataHost            string                      `json:"dataHost"`
 	ReconnectTimeout    uint16                      `json:"reconnectTimeout"`
 	DatabaseCredentials []ConfigDatabaseCredentials `json:"databaseCredentials"`
 }
@@ -22,10 +21,9 @@ type ConfigDatabaseCredentials struct {
 func NewConfig() Config {
 	return Config{
 		Https:               false,
-		Host:                "localhost",
-		APIPort:             8081,
-		StaticPort:          8082,
-		Port:                23365,
+		DaemonHost:          "localhost:9002",
+		APIHost:             "localhost:9001",
+		DataHost:            "localhost:455",
 		ReconnectTimeout:    5,
 		DatabaseCredentials: []ConfigDatabaseCredentials{},
 	}

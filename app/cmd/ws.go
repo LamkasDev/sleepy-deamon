@@ -78,7 +78,7 @@ type WebsocketRequestStatsReplyMessage struct {
 }
 
 func ConnectWebsocket(handler *Handler) *websocket.Conn {
-	u := url.URL{Host: fmt.Sprintf("%s:%v", handler.Config.Host, handler.Config.Port), Path: "/socket"}
+	u := url.URL{Host: handler.Config.DaemonHost, Path: "/socket"}
 	if handler.Config.Https {
 		u.Scheme = "wss"
 	} else {
@@ -183,7 +183,9 @@ func ProcessWebsocket(handler *Handler, ws *websocket.Conn) error {
 func GetStatsMessage(handler *Handler) WebsocketRequestStatsReplyMessage {
 	timeDiff := uint64(time.Now().Sub(handler.StatsSnapshot.Timestamp).Seconds())
 	message := WebsocketRequestStatsReplyMessage{
+		CPU:    CPUUsage{},
 		Memory: GetMemoryUsage(),
+		Disks:  []DiskUsage{},
 	}
 
 	networkUsage := GetNetworkUsage()

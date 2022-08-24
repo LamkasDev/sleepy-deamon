@@ -32,9 +32,9 @@ func Update(handler *Handler, version string) error {
 	// Main Daemon
 	var url string
 	if handler.Config.Https {
-		url = fmt.Sprintf("https://%s:%v/daemons/%s.zip", handler.Config.Host, handler.Config.StaticPort, version)
+		url = fmt.Sprintf("https://%s/daemons/%s.zip", handler.Config.DataHost, version)
 	} else {
-		url = fmt.Sprintf("http://%s:%v/daemons/%s.zip", handler.Config.Host, handler.Config.StaticPort, version)
+		url = fmt.Sprintf("http://%s/daemons/%s.zip", handler.Config.DataHost, version)
 	}
 	err := Download(handler, url, filepath.Join(handler.Directory, "temp", "daemon.zip"), fmt.Sprintf("daemon-%s", version))
 	if err != nil {
@@ -43,9 +43,9 @@ func Update(handler *Handler, version string) error {
 
 	// Root Daemon Files
 	if handler.Config.Https {
-		url = fmt.Sprintf("https://%s:%v/daemons/%s-root.zip", handler.Config.Host, handler.Config.StaticPort, version)
+		url = fmt.Sprintf("https://%s/daemons/%s-root.zip", handler.Config.DataHost, version)
 	} else {
-		url = fmt.Sprintf("http://%s:%v/daemons/%s-root.zip", handler.Config.Host, handler.Config.StaticPort, version)
+		url = fmt.Sprintf("http://%s/daemons/%s-root.zip", handler.Config.DataHost, version)
 	}
 	err = Download(handler, url, filepath.Join(handler.Directory, "temp", "daemon-root.zip"), fmt.Sprintf("daemon-root-%s", version))
 	if err != nil {

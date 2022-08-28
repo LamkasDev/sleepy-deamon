@@ -24,7 +24,7 @@ type Handler struct {
 
 type HandlerStatsSnapshot struct {
 	Timestamp          time.Time
-	LinuxRawCPUUsage   CPUUsageLinuxRaw
+	RawCPUUsage        CPUUsageRaw
 	LinuxRawDiskUsages []DiskUsageLinuxRaw
 	NetworkUsage       NetworkUsage
 }
@@ -46,8 +46,8 @@ func CreateHandler(configName string) Handler {
 		return handler
 	}
 	handler.StatsSnapshot.Timestamp = time.Now()
+	handler.StatsSnapshot.RawCPUUsage = GetCPUUsage()
 	if runtime.GOOS == "linux" {
-		handler.StatsSnapshot.LinuxRawCPUUsage = GetCPUUsageLinux()
 		handler.StatsSnapshot.LinuxRawDiskUsages = GetDiskUsagesLinux()
 	}
 	handler.StatsSnapshot.NetworkUsage = GetNetworkUsage()
@@ -71,7 +71,6 @@ func main() {
 
 	// Handler
 	handler := CreateHandler(*flagConfigName)
-	GetMemoryUsage()
 
 	// Websocket
 	var ws *websocket.Conn

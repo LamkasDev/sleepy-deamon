@@ -182,27 +182,35 @@ func ProcessWebsocket(handler *Handler, ws *websocket.Conn) error {
 
 func GetStatsMessage(handler *Handler) WebsocketRequestStatsReplyMessage {
 	timeDiff := uint64(time.Now().Sub(handler.StatsSnapshot.Timestamp).Seconds())
+	handler.StatsSnapshot.Timestamp = time.Now()
 	message := WebsocketRequestStatsReplyMessage{
 		CPU:    CPUUsage{},
 		Memory: GetMemoryUsage(),
 		Disks:  []DiskUsage{},
 	}
 
+	rawCpuUsage := GetCPUUsage()
+	rawCpuTotal := float32(rawCpuUsage.Total - handler.StatsSnapshot.RawCPUUsage.Total)
+	message.CPU = CPUUsage{
+		Total: (float32(rawCpuUsage.User-handler.StatsSnapshot.RawCPUUsage.User) + float32(rawCpuUsage.System-handler.StatsSnapshot.RawCPUUsage.System)) / rawCpuTotal * 100,
+	}
+	handler.StatsSnapshot.RawCPUUsage = rawCpuUsage
+
 	networkUsage := GetNetworkUsage()
 	message.Network = NetworkUsage{
 		RX: (networkUsage.RX - handler.StatsSnapshot.NetworkUsage.RX) / timeDiff,
 		TX: (networkUsage.TX - handler.StatsSnapshot.NetworkUsage.TX) / timeDiff,
 	}
+	if message.Network.RX < 0 {
+		message.Network.RX = 0
+	}
+	if message.Network.TX < 0 {
+		message.Network.TX = 0
+	}
 	handler.StatsSnapshot.NetworkUsage = networkUsage
 
 	switch runtime.GOOS {
 	case "linux":
-		rawCpuUsage := GetCPUUsageLinux()
-		rawCpuTotal := float32(rawCpuUsage.Total - handler.StatsSnapshot.LinuxRawCPUUsage.Total)
-		message.CPU = CPUUsage{
-			Total: (float32(rawCpuUsage.User-handler.StatsSnapshot.LinuxRawCPUUsage.User) + float32(rawCpuUsage.System-handler.StatsSnapshot.LinuxRawCPUUsage.System)) / rawCpuTotal * 100,
-		}
-
 		var diskUsages []DiskUsage
 		disks := GetDisks()
 		lastRawDiskUsages := handler.StatsSnapshot.LinuxRawDiskUsages
@@ -246,9 +254,6 @@ func GetStatsMessage(handler *Handler) WebsocketRequestStatsReplyMessage {
 			// SleepyLogLn("Adding... (name: %s, id: %s, read: %v, write: %v, timeDiff: %v)", disks[matchingDiskIndex].Name, disks[matchingDiskIndex].ID, diskUsage.Read, diskUsage.Write, timeDiff)
 		}
 		message.Disks = diskUsages
-
-		handler.StatsSnapshot.Timestamp = time.Now()
-		handler.StatsSnapshot.LinuxRawCPUUsage = rawCpuUsage
 		handler.StatsSnapshot.LinuxRawDiskUsages = rawDiskUsages
 		break
 	}

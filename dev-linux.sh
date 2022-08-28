@@ -5,4 +5,4 @@ cd ../..
 
 # Run
 killall sleepy-daemon
-./app/bin/sleepy-daemon -config="current.json"
+./app/bin/sleepy-daemon -config="dev.json"

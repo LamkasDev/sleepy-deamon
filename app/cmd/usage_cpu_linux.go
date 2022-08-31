@@ -3,6 +3,14 @@
 
 package main
 
+import (
+	"bufio"
+	"os"
+	"strconv"
+	"strings"
+	"unicode"
+)
+
 type CPUStatLinux struct {
 	Name string
 	Ptr  *uint64
@@ -32,7 +40,7 @@ func GetCPUUsageSystem() CPUUsageRaw {
 	}
 	if !scanner.Scan() {
 		SleepyWarnLn("Failed to scan /proc/stat!")
-		return CPUUsageLinuxRaw{}
+		return CPUUsageRaw{}
 	}
 
 	scanFields := strings.Fields(scanner.Text())[1:]
@@ -41,7 +49,7 @@ func GetCPUUsageSystem() CPUUsageRaw {
 		value, err := strconv.ParseUint(field, 10, 64)
 		if err != nil {
 			SleepyWarnLn("Failed to scan %s from /proc/stat!", cpuStats[i].Name)
-			return CPUUsageLinuxRaw{}
+			return CPUUsageRaw{}
 		}
 		*cpuStats[i].Ptr = value
 		cpu.Total += value

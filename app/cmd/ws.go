@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/url"
 	"path/filepath"
@@ -30,6 +29,11 @@ const (
 	WebsocketAuthFailureWrongToken      string = "WRONG_TOKEN"
 	WebsocketAuthFailureVersionMismatch string = "VERSION_MISMATCH"
 )
+
+type Session struct {
+	ID   string
+	Name string
+}
 
 type WebsocketMessage struct {
 	Type string `json:"type"`
@@ -59,9 +63,10 @@ type WebsocketAuthFailureVersionMismatchMessage struct {
 }
 
 type WebsocketRequestRefreshReplyMessage struct {
-	Type       string      `json:"type"`
-	Disks      []Disk      `json:"disks"`
-	Containers []Container `json:"containers"`
+	Type              string             `json:"type"`
+	Disks             []Disk             `json:"disks"`
+	Containers        []Container        `json:"containers"`
+	ContainerProjects []ContainerProject `json:"containerProjects"`
 }
 
 type WebsocketRequestDatabaseBackupMessage struct {
@@ -122,8 +127,11 @@ func ProcessWebsocket(handler *Handler, ws *websocket.Conn) error {
 		case WebsocketMessageTypeAuthSuccess:
 			var message WebsocketAuthSuccessMessage
 			_ = json.Unmarshal(messageRaw, &message)
-			SleepyLogLn("Logged in as %s! (id: %s)", message.Name, message.ID)
-			break
+			handler.Session = &Session{
+				ID:   message.ID,
+				Name: message.Name,
+			}
+			SleepyLogLn("Logged in as %s! (id: %s)", handler.Session.Name, handler.Session.ID)
 		case WebsocketMessageTypeAuthFailure:
 			var message WebsocketAuthFailureMessage
 			_ = json.Unmarshal(messageRaw, &message)
@@ -131,7 +139,6 @@ func ProcessWebsocket(handler *Handler, ws *websocket.Conn) error {
 			case WebsocketAuthFailureWrongToken:
 				SleepyErrorLn("Incorrect token! Closing the deamon...")
 				closeDaemon(handler)
-				break
 			case WebsocketAuthFailureVersionMismatch:
 				var message WebsocketAuthFailureVersionMismatchMessage
 				_ = json.Unmarshal(messageRaw, &message)
@@ -140,19 +147,18 @@ func ProcessWebsocket(handler *Handler, ws *websocket.Conn) error {
 				if err != nil {
 					return err
 				}
-				break
 			default:
-				return errors.New(fmt.Sprintf("failed to auth: %s", message.Reason))
+				return fmt.Errorf("failed to auth: %s", message.Reason)
 			}
-			break
 		case WebsocketMessageTypeRequestRefresh:
+			containerProjects := GetContainerProjects(handler)
 			requestRefreshReplyMessage := WebsocketRequestRefreshReplyMessage{
-				Type:       WebsocketMessageTypeRequestRefreshReply,
-				Disks:      GetDisks(),
-				Containers: GetContainers(),
+				Type:              WebsocketMessageTypeRequestRefreshReply,
+				Disks:             GetDisks(),
+				Containers:        GetContainers(containerProjects),
+				ContainerProjects: containerProjects,
 			}
 			ws.WriteJSON(requestRefreshReplyMessage)
-			break
 		case WebsocketMessageTypeRequestDatabaseBackup:
 			var message WebsocketRequestDatabaseBackupMessage
 			_ = json.Unmarshal(messageRaw, &message)
@@ -170,18 +176,16 @@ func ProcessWebsocket(handler *Handler, ws *websocket.Conn) error {
 			if err != nil {
 				SleepyWarnLn("Failed to upload database backup! (%s)", err.Error())
 			}
-			break
 		case WebsocketMessageTypeRequestStats:
 			requestStatsReplyMessage := GetStatsMessage(handler)
 			requestStatsReplyMessage.Type = WebsocketMessageTypeRequestStatsReply
 			ws.WriteJSON(requestStatsReplyMessage)
-			break
 		}
 	}
 }
 
 func GetStatsMessage(handler *Handler) WebsocketRequestStatsReplyMessage {
-	timeDiff := uint64(time.Now().Sub(handler.StatsSnapshot.Timestamp).Seconds())
+	timeDiff := uint64(time.Since(handler.StatsSnapshot.Timestamp).Seconds())
 	handler.StatsSnapshot.Timestamp = time.Now()
 	message := WebsocketRequestStatsReplyMessage{
 		CPU:    CPUUsage{},
@@ -198,8 +202,8 @@ func GetStatsMessage(handler *Handler) WebsocketRequestStatsReplyMessage {
 
 	networkUsage := GetNetworkUsage()
 	message.Network = NetworkUsage{
-		RX: (networkUsage.RX - handler.StatsSnapshot.NetworkUsage.RX) / timeDiff,
-		TX: (networkUsage.TX - handler.StatsSnapshot.NetworkUsage.TX) / timeDiff,
+		RX: (networkUsage.RX - handler.StatsSnapshot.NetworkUsage.RX) / int64(timeDiff),
+		TX: (networkUsage.TX - handler.StatsSnapshot.NetworkUsage.TX) / int64(timeDiff),
 	}
 	if message.Network.RX < 0 {
 		message.Network.RX = 0
@@ -255,7 +259,6 @@ func GetStatsMessage(handler *Handler) WebsocketRequestStatsReplyMessage {
 		}
 		message.Disks = diskUsages
 		handler.StatsSnapshot.LinuxRawDiskUsages = rawDiskUsages
-		break
 	}
 
 	return message

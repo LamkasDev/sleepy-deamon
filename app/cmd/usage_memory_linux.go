@@ -3,6 +3,13 @@
 
 package main
 
+import (
+	"bufio"
+	"os"
+	"strings"
+	"strconv"
+)
+
 type MemoryUsageLinuxRaw struct {
 	Total, Used, Buffers, Cached, Free, Available, Active, Inactive,
 	SwapTotal, SwapUsed, SwapCached, SwapFree uint64

@@ -5,8 +5,8 @@ import (
 )
 
 type NetworkUsage struct {
-	RX uint64 `json:"rx"`
-	TX uint64 `json:"tx"`
+	RX int64 `json:"rx"`
+	TX int64 `json:"tx"`
 }
 
 func GetNetworkUsage() NetworkUsage {

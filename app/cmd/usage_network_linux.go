@@ -3,6 +3,13 @@
 
 package main
 
+import (
+	"bufio"
+	"os"
+	"strconv"
+	"strings"
+)
+
 func GetNetworkUsageSystem() NetworkUsage {
 	file, err := os.Open("/proc/net/dev")
 	if err != nil {

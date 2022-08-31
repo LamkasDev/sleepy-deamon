@@ -9,6 +9,7 @@ require (
 
 require (
 	github.com/jwalton/go-supportscolor v1.1.0 // indirect
-	golang.org/x/sys v0.0.0-20211004093028-2c5d950f24ef // indirect
+	golang.org/x/exp v0.0.0-20220827204233-334a2380cb91
+	golang.org/x/sys v0.0.0-20220722155257-8c9f86f7a55f // indirect
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
 )

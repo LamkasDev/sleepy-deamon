@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -20,6 +19,7 @@ type Handler struct {
 	Config        Config
 	StatsSnapshot HandlerStatsSnapshot
 	WS            *websocket.Conn
+	Session       *Session
 }
 
 type HandlerStatsSnapshot struct {
@@ -33,7 +33,7 @@ func CreateHandler(configName string) Handler {
 	var handler Handler
 	handler.Directory, _ = os.Getwd()
 	handler.Config = NewConfig()
-	configRaw, err := ioutil.ReadFile(filepath.Join(handler.Directory, "config", configName))
+	configRaw, err := os.ReadFile(filepath.Join(handler.Directory, "config", configName))
 	if err != nil {
 		SleepyErrorLn("Failed to read config! Make sure you launched the daemon from the correct folder! (%s)", err.Error())
 		closeDaemon(&handler)
@@ -87,6 +87,7 @@ func main() {
 		handler.WS = ws
 		ProcessWebsocket(&handler, ws)
 		handler.WS = nil
+		handler.Session = nil
 		time.Sleep(time.Second * time.Duration(handler.Config.ReconnectTimeout))
 		go wsLoop()
 	}

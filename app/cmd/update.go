@@ -54,6 +54,9 @@ func Update(handler *Handler, version string) error {
 
 	SleepyLogLn("Deleting old files...")
 	dir, err := os.ReadDir(handler.Directory)
+	if err != nil {
+		return err
+	}
 	for _, f := range dir {
 		if !f.IsDir() || f.Name() == "misc" || f.Name() == "tools" {
 			os.RemoveAll(filepath.Join(handler.Directory, f.Name()))
@@ -89,10 +92,10 @@ func Update(handler *Handler, version string) error {
 
 func Download(handler *Handler, url string, path string, version string) error {
 	out, err := os.Create(path)
-	defer out.Close()
 	if err != nil {
 		return err
 	}
+	defer out.Close()
 
 	resp, err := http.Get(url)
 	if err != nil {

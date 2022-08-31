@@ -12,7 +12,7 @@ import (
 func CreateBackup(handler *Handler, database string) error {
 	executable := GetMySQLDump()
 	if executable == "" {
-		return errors.New("Could not find 'mysqldump'!")
+		return errors.New("could not find 'mysqldump'")
 	}
 
 	for _, credentials := range handler.Config.DatabaseCredentials {
@@ -28,7 +28,7 @@ func CreateBackup(handler *Handler, database string) error {
 		}
 	}
 
-	return errors.New("Database isn't specified in the config!")
+	return errors.New("database isn't specified in the config")
 }
 
 func GetMySQLDump() string {

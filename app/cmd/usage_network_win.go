@@ -34,8 +34,8 @@ func GetNetworkUsageSystem() NetworkUsage {
 			continue
 		}
 
-		network.RX += adapter.ReceivedBytes
-		network.TX += adapter.SentBytes
+		network.RX += int64(adapter.ReceivedBytes)
+		network.TX += int64(adapter.SentBytes)
 	}
 
 	return network

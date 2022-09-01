@@ -215,18 +215,17 @@ func GetStatsMessage(handler *Handler) WebsocketRequestStatsReplyMessage {
 
 	switch runtime.GOOS {
 	case "linux":
-		var diskUsages []DiskUsage
 		disks := GetDisks()
-		lastRawDiskUsages := handler.StatsSnapshot.LinuxRawDiskUsages
-		rawDiskUsages := GetDiskUsagesLinux()
-		for _, rawDiskUsage := range rawDiskUsages {
-			lastRawDiskUsageIndex := -1
-			for i, diskUsage := range lastRawDiskUsages {
+		diskUsagesSnapshot := GetDiskUsagesLinux()
+		var diskUsages []DiskUsage
+		for _, rawDiskUsage := range diskUsagesSnapshot {
+			lastDiskUsageIndex := -1
+			for i, diskUsage := range handler.StatsSnapshot.LinuxRawDiskUsages {
 				if diskUsage.Name == rawDiskUsage.Name {
-					lastRawDiskUsageIndex = i
+					lastDiskUsageIndex = i
 				}
 			}
-			if lastRawDiskUsageIndex == -1 {
+			if lastDiskUsageIndex == -1 {
 				continue
 			}
 			matchingDiskIndex := -1
@@ -238,27 +237,26 @@ func GetStatsMessage(handler *Handler) WebsocketRequestStatsReplyMessage {
 			if matchingDiskIndex == -1 {
 				continue
 			}
-			readsDiff := rawDiskUsage.Reads - lastRawDiskUsages[lastRawDiskUsageIndex].Reads
+			readsDiff := rawDiskUsage.Reads - handler.StatsSnapshot.LinuxRawDiskUsages[lastDiskUsageIndex].Reads
 			if readsDiff <= 0 {
 				readsDiff = 1
 			}
-			writesDiff := rawDiskUsage.Writes - lastRawDiskUsages[lastRawDiskUsageIndex].Writes
+			writesDiff := rawDiskUsage.Writes - handler.StatsSnapshot.LinuxRawDiskUsages[lastDiskUsageIndex].Writes
 			if writesDiff <= 0 {
 				writesDiff = 1
 			}
 
-			diskUsage := DiskUsage{
+			diskUsages = append(diskUsages, DiskUsage{
 				Parent:       disks[matchingDiskIndex].ID,
-				Read:         ((rawDiskUsage.ReadSectors - lastRawDiskUsages[lastRawDiskUsageIndex].ReadSectors) * 512) / timeDiff,
-				Write:        ((rawDiskUsage.WriteSectors - lastRawDiskUsages[lastRawDiskUsageIndex].WriteSectors) * 512) / timeDiff,
-				ReadLatency:  ((rawDiskUsage.ReadTime - lastRawDiskUsages[lastRawDiskUsageIndex].ReadTime) / readsDiff),
-				WriteLatency: ((rawDiskUsage.WriteTime - lastRawDiskUsages[lastRawDiskUsageIndex].WriteTime) / writesDiff),
-			}
-			diskUsages = append(diskUsages, diskUsage)
+				Read:         ((rawDiskUsage.ReadSectors - handler.StatsSnapshot.LinuxRawDiskUsages[lastDiskUsageIndex].ReadSectors) * 512) / timeDiff,
+				Write:        ((rawDiskUsage.WriteSectors - handler.StatsSnapshot.LinuxRawDiskUsages[lastDiskUsageIndex].WriteSectors) * 512) / timeDiff,
+				ReadLatency:  ((rawDiskUsage.ReadTime - handler.StatsSnapshot.LinuxRawDiskUsages[lastDiskUsageIndex].ReadTime) / readsDiff),
+				WriteLatency: ((rawDiskUsage.WriteTime - handler.StatsSnapshot.LinuxRawDiskUsages[lastDiskUsageIndex].WriteTime) / writesDiff),
+			})
 			// SleepyLogLn("Adding... (name: %s, id: %s, read: %v, write: %v, timeDiff: %v)", disks[matchingDiskIndex].Name, disks[matchingDiskIndex].ID, diskUsage.Read, diskUsage.Write, timeDiff)
 		}
 		message.Disks = diskUsages
-		handler.StatsSnapshot.LinuxRawDiskUsages = rawDiskUsages
+		handler.StatsSnapshot.LinuxRawDiskUsages = diskUsagesSnapshot
 	}
 
 	return message

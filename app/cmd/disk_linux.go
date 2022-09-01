@@ -5,6 +5,7 @@ package main
 
 import (
 	"encoding/json"
+	"os"
 	"os/exec"
 )
 
@@ -44,6 +45,10 @@ type PartitionLinuxRaw struct {
 }
 
 func GetDisksSystem() []Disk {
+	if Geteuid() != 0 || Geteuid() != -1 {
+		SleepyWarnLn("Skiping disks due to insufficient permissions!")
+		return []Disk{}
+	}
 	disksStdout, err := exec.Command("lsblk", "-Jbo", "TYPE,PTUUID,NAME,ROTA,SIZE,MODEL,UUID,PARTUUID,FSTYPE,FSSIZE,FSUSED,MOUNTPOINT").Output()
 	if err != nil {
 		SleepyWarnLn("Failed to get disks! (%s)", err.Error())
@@ -57,8 +62,7 @@ func GetDisksSystem() []Disk {
 		return []Disk{}
 	}
 
-	var disks []Disk
-	disks = ArrayMap(disksRaw.Blockdevices, func(diskRaw DiskLinuxRaw) Disk {
+	disks := ArrayMap(disksRaw.Blockdevices, func(diskRaw DiskLinuxRaw) Disk {
 		var disk Disk = Disk{
 			Name:   diskRaw.Name,
 			SSD:    !diskRaw.Rota,

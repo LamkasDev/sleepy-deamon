@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"os/exec"
 	"strconv"
+	"sync"
 )
 
 type DiskWindowsRaw struct {
@@ -17,8 +18,6 @@ type DiskWindowsRaw struct {
 	Size         uint64
 	Model        *string
 	MediaType    string
-	IsBoot       bool
-	IsHidden     bool
 }
 
 type PartitionWindowsRaw struct {
@@ -27,41 +26,65 @@ type PartitionWindowsRaw struct {
 	DiskNumber  int
 	DriveLetter *string
 	Size        uint64
+	IsBoot      bool
+	IsHidden    bool
+}
+
+type VolumeWindowsRaw struct {
+	DriveLetter   *string
+	SizeRemaining uint64
 }
 
 func GetDisksSystem() []Disk {
-	disksStdout, err := exec.Command("Powershell", "-Command", "Get-PhysicalDisk | ConvertTo-Json").Output()
-	if err != nil {
-		SleepyWarnLn("Failed to get disks! (%s)", err.Error())
-		return []Disk{}
-	}
-
+	var wg sync.WaitGroup
 	var disksRaw []DiskWindowsRaw
-	err = json.Unmarshal(disksStdout, &disksRaw)
-	if err != nil {
-		SleepyWarnLn("Failed to parse disks! (%s)", err.Error())
-		return []Disk{}
-	}
-
-	partitionsStdout, err := exec.Command("Powershell", "-Command", "Get-Partition | ConvertTo-Json").Output()
-	if err != nil {
-		SleepyWarnLn("Failed to get partitions! (%s)", err.Error())
-		return []Disk{}
-	}
-
 	var partitionsRaw []PartitionWindowsRaw
-	err = json.Unmarshal(partitionsStdout, &partitionsRaw)
-	if err != nil {
-		SleepyWarnLn("Failed to parse partitions! (%s)", err.Error())
-		return []Disk{}
-	}
+	var volumesRaw []VolumeWindowsRaw
+
+	wg.Add(3)
+	go func() {
+		defer wg.Done()
+		disksStdout, err := exec.Command("Powershell", "-Command", "Get-PhysicalDisk | ConvertTo-Json").Output()
+		if err != nil {
+			SleepyWarnLn("Failed to get disks! (%s)", err.Error())
+			return
+		}
+		err = json.Unmarshal(disksStdout, &disksRaw)
+		if err != nil {
+			SleepyWarnLn("Failed to parse disks! (%s)", err.Error())
+			return
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		partitionsStdout, err := exec.Command("Powershell", "-Command", "Get-Partition | ConvertTo-Json").Output()
+		if err != nil {
+			SleepyWarnLn("Failed to get partitions! (%s)", err.Error())
+			return
+		}
+		err = json.Unmarshal(partitionsStdout, &partitionsRaw)
+		if err != nil {
+			SleepyWarnLn("Failed to parse partitions! (%s)", err.Error())
+			return
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		volumesStdout, err := exec.Command("Powershell", "-Command", "Get-Volume | ConvertTo-Json").Output()
+		if err != nil {
+			SleepyWarnLn("Failed to get volumes! (%s)", err.Error())
+			return
+		}
+		err = json.Unmarshal(volumesStdout, &volumesRaw)
+		if err != nil {
+			SleepyWarnLn("Failed to parse volumes! (%s)", err.Error())
+			return
+		}
+	}()
+	wg.Wait()
 
 	var disks []Disk
 	for _, diskRaw := range disksRaw {
-		if diskRaw.IsBoot || diskRaw.IsHidden {
-			continue
-		}
-
 		var disk Disk = Disk{
 			Name:   diskRaw.FriendlyName,
 			SSD:    diskRaw.MediaType == "SSD",
@@ -76,8 +99,9 @@ func GetDisksSystem() []Disk {
 			disk.ID = GetMD5Hash(*diskRaw.UniqueId + *diskRaw.SerialNumber)
 		}
 		disk.ID = GetMD5Hash(*diskRaw.UniqueId)
+		disk.Children = []Partition{}
 		for _, partRaw := range partitionsRaw {
-			if strconv.Itoa(partRaw.DiskNumber) != diskRaw.DeviceId {
+			if partRaw.IsHidden || strconv.Itoa(partRaw.DiskNumber) != diskRaw.DeviceId {
 				continue
 			}
 
@@ -99,6 +123,17 @@ func GetDisksSystem() []Disk {
 				part.Name = "???"
 			} else {
 				part.Name = *partRaw.DriveLetter
+
+				// Let's hope that 1 volume = 1 partition
+				matchingVolumeIndex := -1
+				for i, volumeRaw := range volumesRaw {
+					if *partRaw.DriveLetter == *volumeRaw.DriveLetter {
+						matchingVolumeIndex = i
+					}
+				}
+				if matchingVolumeIndex != -1 {
+					part.Used = &volumesRaw[matchingVolumeIndex].SizeRemaining
+				}
 			}
 
 			disk.Children = append(disk.Children, part)

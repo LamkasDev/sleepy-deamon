@@ -116,8 +116,7 @@ func GetContainers(containerProjects []ContainerProject) []Container {
 
 func GetContainersSystem(containerProjects []ContainerProject) []Container {
 	fields := []string{"ID", "Image", "Ports", "Status", "Names", "Mounts", "Networks"}
-	fieldsCmd := strings.Join(ArrayMap(fields, func(e string) string { return fmt.Sprintf(`"%s":"{{.%s}}"`, e, e) }), ",")
-	containersStdout, err := exec.Command("docker", "ps", "--format", fmt.Sprintf("{%s}", fieldsCmd)).Output()
+	containersStdout, err := exec.Command("docker", "ps", "--format", GetDockerFormat(fields)).Output()
 	if err != nil {
 		SleepyWarnLn("Failed to get containers! (%s)", err.Error())
 		return []Container{}
@@ -134,8 +133,7 @@ func GetContainersSystem(containerProjects []ContainerProject) []Container {
 	var containers []Container
 	for _, containerRaw := range containersRaw {
 		detailedFields := []string{"State.StartedAt"}
-		detailedFieldsCmd := strings.Join(ArrayMap(detailedFields, func(e string) string { return fmt.Sprintf(`"%s":"{{.%s}}"`, e, e) }), ",")
-		containerStdout, err := exec.Command("docker", "inspect", "--format", fmt.Sprintf("{%s}", detailedFieldsCmd), containerRaw.ID).Output()
+		containerStdout, err := exec.Command("docker", "inspect", "--format", GetDockerFormat(detailedFields), containerRaw.ID).Output()
 		if err != nil {
 			SleepyWarnLn("Failed to get container details! (%s)", err.Error())
 			break

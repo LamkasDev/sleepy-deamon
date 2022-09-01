@@ -27,6 +27,7 @@ type HandlerStatsSnapshot struct {
 	RawCPUUsage        CPUUsageRaw
 	LinuxRawDiskUsages []DiskUsageLinuxRaw
 	NetworkUsage       NetworkUsage
+	ContainerUsages    []ContainerUsage
 }
 
 func CreateHandler(configName string) Handler {
@@ -51,6 +52,7 @@ func CreateHandler(configName string) Handler {
 		handler.StatsSnapshot.LinuxRawDiskUsages = GetDiskUsagesLinux()
 	}
 	handler.StatsSnapshot.NetworkUsage = GetNetworkUsage()
+	handler.StatsSnapshot.ContainerUsages = GetContainerUsages()
 
 	return handler
 }

@@ -35,8 +35,8 @@ func GetNetworkUsageSystem() NetworkUsage {
 		rx, _ := strconv.ParseUint(fields[0], 10, 64)
 		tx, _ := strconv.ParseUint(fields[8], 10, 64)
 
-		network.RX += rx
-		network.TX += tx
+		network.RX += int64(rx)
+		network.TX += int64(tx)
 	}
 
 	return network

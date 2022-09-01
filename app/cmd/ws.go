@@ -75,11 +75,12 @@ type WebsocketRequestDatabaseBackupMessage struct {
 }
 
 type WebsocketRequestStatsReplyMessage struct {
-	Type    string       `json:"type"`
-	CPU     CPUUsage     `json:"cpu"`
-	Memory  MemoryUsage  `json:"memory"`
-	Disks   []DiskUsage  `json:"disks"`
-	Network NetworkUsage `json:"network"`
+	Type       string           `json:"type"`
+	CPU        CPUUsage         `json:"cpu"`
+	Memory     MemoryUsage      `json:"memory"`
+	Disks      []DiskUsage      `json:"disks"`
+	Network    NetworkUsage     `json:"network"`
+	Containers []ContainerUsage `json:"containers"`
 }
 
 func ConnectWebsocket(handler *Handler) *websocket.Conn {
@@ -212,6 +213,31 @@ func GetStatsMessage(handler *Handler) WebsocketRequestStatsReplyMessage {
 		message.Network.TX = 0
 	}
 	handler.StatsSnapshot.NetworkUsage = networkUsage
+
+	containerUsagesSnapshot := GetContainerUsages()
+	var containerUsages []ContainerUsage
+	for _, containerUsageSnapshot := range containerUsagesSnapshot {
+		lastContainerUsageIndex := -1
+		for i, tempContainerUsage := range handler.StatsSnapshot.ContainerUsages {
+			if containerUsageSnapshot.Parent == tempContainerUsage.Parent {
+				lastContainerUsageIndex = i
+			}
+		}
+		if lastContainerUsageIndex == -1 {
+			continue
+		}
+		containerUsages = append(containerUsages, ContainerUsage{
+			Parent: containerUsageSnapshot.Parent,
+			RX:     (containerUsageSnapshot.RX - handler.StatsSnapshot.ContainerUsages[lastContainerUsageIndex].RX) / int64(timeDiff),
+			TX:     (containerUsageSnapshot.TX - handler.StatsSnapshot.ContainerUsages[lastContainerUsageIndex].TX) / int64(timeDiff),
+			CPU:    containerUsageSnapshot.CPU,
+			Memory: containerUsageSnapshot.Memory,
+			Read:   (containerUsageSnapshot.Read - handler.StatsSnapshot.ContainerUsages[lastContainerUsageIndex].Read) / uint64(timeDiff),
+			Write:  (containerUsageSnapshot.Write - handler.StatsSnapshot.ContainerUsages[lastContainerUsageIndex].Write) / uint64(timeDiff),
+		})
+	}
+	message.Containers = containerUsages
+	handler.StatsSnapshot.ContainerUsages = containerUsagesSnapshot
 
 	switch runtime.GOOS {
 	case "linux":

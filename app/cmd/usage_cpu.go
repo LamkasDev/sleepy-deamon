@@ -19,5 +19,3 @@ func GetCPUUsage() CPUUsageRaw {
 		return CPUUsageRaw{}
 	}
 }
-
-// TODO: make windows implementation

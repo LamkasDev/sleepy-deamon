@@ -17,8 +17,8 @@ const (
 	WebsocketMessageTypeAuthSuccess string = "DAEMON_AUTH_SUCCESS"
 	WebsocketMessageTypeAuthFailure string = "DAEMON_AUTH_FAILURE"
 
-	WebsocketMessageTypeRequestRefresh        string = "DAEMON_REQUEST_REFRESH"
-	WebsocketMessageTypeRequestRefreshReply   string = "DAEMON_REQUEST_REFRESH_REPLY"
+	WebsocketMessageTypeRequestResources      string = "DAEMON_REQUEST_RESOURCES"
+	WebsocketMessageTypeRequestResourcesReply string = "DAEMON_REQUEST_RESOURCES_REPLY"
 	WebsocketMessageTypeRequestDatabaseBackup string = "DAEMON_REQUEST_DATABASE_BACKUP"
 
 	WebsocketMessageTypeRequestStats      string = "DAEMON_REQUEST_STATS"
@@ -62,7 +62,7 @@ type WebsocketAuthFailureVersionMismatchMessage struct {
 	Version string `json:"version"`
 }
 
-type WebsocketRequestRefreshReplyMessage struct {
+type WebsocketRequestResourcesReplyMessage struct {
 	Type              string             `json:"type"`
 	Disks             []Disk             `json:"disks"`
 	Containers        []Container        `json:"containers"`
@@ -150,15 +150,15 @@ func ProcessWebsocket(handler *Handler, ws *websocket.Conn) error {
 			default:
 				return fmt.Errorf("failed to auth: %s", message.Reason)
 			}
-		case WebsocketMessageTypeRequestRefresh:
+		case WebsocketMessageTypeRequestResources:
 			containerProjects := GetContainerProjects(handler)
-			requestRefreshReplyMessage := WebsocketRequestRefreshReplyMessage{
-				Type:              WebsocketMessageTypeRequestRefreshReply,
+			requestResourcesReplyMessage := WebsocketRequestResourcesReplyMessage{
+				Type:              WebsocketMessageTypeRequestResourcesReply,
 				Disks:             GetDisks(),
 				Containers:        GetContainers(containerProjects),
 				ContainerProjects: containerProjects,
 			}
-			ws.WriteJSON(requestRefreshReplyMessage)
+			ws.WriteJSON(requestResourcesReplyMessage)
 		case WebsocketMessageTypeRequestDatabaseBackup:
 			var message WebsocketRequestDatabaseBackupMessage
 			_ = json.Unmarshal(messageRaw, &message)

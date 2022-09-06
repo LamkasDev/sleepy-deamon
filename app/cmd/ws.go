@@ -62,6 +62,16 @@ type WebsocketAuthFailureVersionMismatchMessage struct {
 	Version string `json:"version"`
 }
 
+type WebsocketRequestResourcesMessage struct {
+	Type      string   `json:"type"`
+	Resources []string `json:"resources"`
+}
+
+const (
+	WebsocketResourcesContainersType string = "CONTAINERS"
+	WebsocketResourcesDisksType      string = "DISKS"
+)
+
 type WebsocketRequestResourcesReplyMessage struct {
 	Type              string             `json:"type"`
 	Disks             []Disk             `json:"disks"`
@@ -152,13 +162,22 @@ func ProcessWebsocket(handler *Handler, ws *websocket.Conn) error {
 				return fmt.Errorf("failed to auth: %s", message.Reason)
 			}
 		case WebsocketMessageTypeRequestResources:
-			containerProjects := GetContainerProjects(handler)
+			var message WebsocketRequestResourcesMessage
+			_ = json.Unmarshal(messageRaw, &message)
+
 			requestResourcesReplyMessage := WebsocketRequestResourcesReplyMessage{
-				Type:              WebsocketMessageTypeRequestResourcesReply,
-				Disks:             GetDisks(),
-				Containers:        GetContainers(containerProjects),
-				ContainerProjects: containerProjects,
+				Type: WebsocketMessageTypeRequestResourcesReply,
 			}
+			SleepyLogLn("Asking for resources (%v).", message.Resources)
+			for _, resource := range message.Resources {
+				switch resource {
+				case WebsocketResourcesContainersType:
+					requestResourcesReplyMessage.Containers, requestResourcesReplyMessage.ContainerProjects = GetContainers(handler)
+				case WebsocketResourcesDisksType:
+					requestResourcesReplyMessage.Disks = GetDisks()
+				}
+			}
+
 			ws.WriteJSON(requestResourcesReplyMessage)
 		case WebsocketMessageTypeRequestDatabaseBackup:
 			var message WebsocketRequestDatabaseBackupMessage

@@ -27,6 +27,27 @@ func GetDockerFormat(fields []string) string {
 	return fmt.Sprintf("{%s}", inner)
 }
 
+func ConvertToBytesShort(raw string) uint64 {
+	if len(raw) > 1 {
+		part := raw[len(raw)-1:]
+		partNum, _ := strconv.ParseFloat(raw[:len(raw)-1], 32)
+		switch part {
+		case "B":
+			return uint64(partNum)
+		case "K":
+			return uint64(partNum * 1024)
+		case "M":
+			return uint64(partNum * 1048576)
+		case "G":
+			return uint64(partNum * 1073741824)
+		case "T":
+			return uint64(partNum * 1099511627776)
+		}
+	}
+
+	return 0
+}
+
 func ConvertToBytes(raw string) uint64 {
 	if len(raw) > 3 {
 		binPart := raw[len(raw)-3:]

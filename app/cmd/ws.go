@@ -75,6 +75,7 @@ const (
 type WebsocketRequestResourcesReplyMessage struct {
 	Type              string             `json:"type"`
 	Disks             []Disk             `json:"disks"`
+	ZFSPools          []ZFSPool          `json:"zfsPools"`
 	Containers        []Container        `json:"containers"`
 	ContainerProjects []ContainerProject `json:"containerProjects"`
 }
@@ -175,6 +176,7 @@ func ProcessWebsocket(handler *Handler, ws *websocket.Conn) error {
 					requestResourcesReplyMessage.Containers, requestResourcesReplyMessage.ContainerProjects = GetContainers(handler)
 				case WebsocketResourcesDisksType:
 					requestResourcesReplyMessage.Disks = GetDisks()
+					requestResourcesReplyMessage.ZFSPools = GetZFSPools(requestResourcesReplyMessage.Disks)
 				}
 			}
 

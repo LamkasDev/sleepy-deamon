@@ -38,3 +38,21 @@ func GetZFSPools(disks []Disk) []ZFSPool {
 		return []ZFSPool{}
 	}
 }
+
+func SetZFSOption(name string, key string, value string) bool {
+	switch runtime.GOOS {
+	case "linux", "windows":
+		return SetZFSOptionSystem(name, key, value)
+	default:
+		return false
+	}
+}
+
+func GetZFSVersion() *string {
+	switch runtime.GOOS {
+	case "linux", "windows":
+		return GetZFSVersionSystem()
+	default:
+		return nil
+	}
+}

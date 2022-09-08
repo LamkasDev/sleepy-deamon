@@ -6,6 +6,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"fmt"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -93,4 +94,25 @@ func GetZFSPoolsSystem(disks []Disk) []ZFSPool {
 	}
 
 	return pools
+}
+
+func SetZFSOptionSystem(name string, key string, value string) bool {
+	_, err := exec.Command("zfs", "set", fmt.Sprintf("%s=%s", key, value), name).Output()
+	if err != nil {
+		return false
+	}
+
+	return true
+}
+
+func GetZFSVersionSystem() *string {
+	zfsStdout, err := exec.Command("zfs", "--version").Output()
+	if err != nil {
+		return nil
+	}
+
+	scanner := bufio.NewScanner(bytes.NewReader(zfsStdout))
+	scanner.Scan()
+	version := scanner.Text()
+	return &version
 }

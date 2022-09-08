@@ -68,16 +68,24 @@ type WebsocketRequestResourcesMessage struct {
 }
 
 const (
+	WebsocketResourcesGeneralType    string = "GENERAL"
 	WebsocketResourcesContainersType string = "CONTAINERS"
 	WebsocketResourcesDisksType      string = "DISKS"
 )
 
 type WebsocketRequestResourcesReplyMessage struct {
-	Type              string             `json:"type"`
-	Disks             []Disk             `json:"disks"`
-	ZFSPools          []ZFSPool          `json:"zfsPools"`
-	Containers        []Container        `json:"containers"`
-	ContainerProjects []ContainerProject `json:"containerProjects"`
+	Type              string                              `json:"type"`
+	Memory            *MemoryState                        `json:"memory"`
+	Software          []WebsocketRequestResourcesSoftware `json:"software"`
+	Disks             []Disk                              `json:"disks"`
+	ZFSPools          []ZFSPool                           `json:"zfsPools"`
+	Containers        []Container                         `json:"containers"`
+	ContainerProjects []ContainerProject                  `json:"containerProjects"`
+}
+
+type WebsocketRequestResourcesSoftware struct {
+	Name    string `json:"name"`
+	Version string `json:"version"`
 }
 
 type WebsocketRequestDatabaseBackupMessage struct {
@@ -169,9 +177,18 @@ func ProcessWebsocket(handler *Handler, ws *websocket.Conn) error {
 			requestResourcesReplyMessage := WebsocketRequestResourcesReplyMessage{
 				Type: WebsocketMessageTypeRequestResourcesReply,
 			}
-			SleepyLogLn("Asking for resources (%v).", message.Resources)
 			for _, resource := range message.Resources {
 				switch resource {
+				case WebsocketResourcesGeneralType:
+					memory, _ := GetMemoryDetails()
+					requestResourcesReplyMessage.Memory = &memory
+					requestResourcesReplyMessage.Software = []WebsocketRequestResourcesSoftware{}
+					zfs := GetZFSVersion()
+					if zfs != nil {
+						requestResourcesReplyMessage.Software = append(requestResourcesReplyMessage.Software,
+							WebsocketRequestResourcesSoftware{"zfs", *zfs},
+						)
+					}
 				case WebsocketResourcesContainersType:
 					requestResourcesReplyMessage.Containers, requestResourcesReplyMessage.ContainerProjects = GetContainers(handler)
 				case WebsocketResourcesDisksType:
@@ -210,15 +227,18 @@ func GetStatsMessage(handler *Handler) WebsocketRequestStatsReplyMessage {
 	timeDiff := uint64(time.Since(handler.StatsSnapshot.Timestamp).Seconds())
 	handler.StatsSnapshot.Timestamp = time.Now()
 	message := WebsocketRequestStatsReplyMessage{
-		CPU:    CPUUsage{},
-		Memory: GetMemoryUsage(),
-		Disks:  []DiskUsage{},
+		CPU:   CPUUsage{},
+		Disks: []DiskUsage{},
 	}
+
+	_, memory := GetMemoryDetails()
+	message.Memory = memory
 
 	rawCpuUsage := GetCPUUsage()
 	rawCpuTotal := float32(rawCpuUsage.Total - handler.StatsSnapshot.RawCPUUsage.Total)
 	message.CPU = CPUUsage{
-		Total: (float32(rawCpuUsage.User-handler.StatsSnapshot.RawCPUUsage.User) + float32(rawCpuUsage.System-handler.StatsSnapshot.RawCPUUsage.System)) / rawCpuTotal * 100,
+		User:   (float32(rawCpuUsage.User-handler.StatsSnapshot.RawCPUUsage.User) / rawCpuTotal) * 100,
+		System: (float32(rawCpuUsage.System-handler.StatsSnapshot.RawCPUUsage.System) / rawCpuTotal) * 100,
 	}
 	handler.StatsSnapshot.RawCPUUsage = rawCpuUsage
 

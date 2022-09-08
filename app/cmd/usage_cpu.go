@@ -3,7 +3,8 @@ package main
 import "runtime"
 
 type CPUUsage struct {
-	Total float32 `json:"total"`
+	User   float32 `json:"user"`
+	System float32 `json:"system"`
 }
 
 type CPUUsageRaw struct {

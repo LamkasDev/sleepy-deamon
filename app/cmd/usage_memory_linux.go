@@ -6,11 +6,11 @@ package main
 import (
 	"bufio"
 	"os"
-	"strings"
 	"strconv"
+	"strings"
 )
 
-type MemoryUsageLinuxRaw struct {
+type MemoryLinuxRaw struct {
 	Total, Used, Buffers, Cached, Free, Available, Active, Inactive,
 	SwapTotal, SwapUsed, SwapCached, SwapFree uint64
 	MemAvailableEnabled bool
@@ -21,15 +21,14 @@ type MemoryStatLinux struct {
 	Ptr  *uint64
 }
 
-func GetMemoryUsageSystem() MemoryUsage {
+func GetMemorySystem() (MemoryLinuxRaw, error) {
 	file, err := os.Open("/proc/meminfo")
 	if err != nil {
-		SleepyWarnLn("Failed to get RAM usage! (%s)", err.Error())
-		return MemoryUsage{}
+		return MemoryLinuxRaw{}, err
 	}
 	defer file.Close()
 
-	var memory MemoryUsageLinuxRaw
+	var memory MemoryLinuxRaw
 	scanner := bufio.NewScanner(file)
 	memStats := []MemoryStatLinux{
 		{"MemTotal", &memory.Total},
@@ -63,8 +62,7 @@ func GetMemoryUsageSystem() MemoryUsage {
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		SleepyWarnLn("Failed to scan /proc/meminfo!")
-		return MemoryUsage{}
+		return MemoryLinuxRaw{}, err
 	}
 
 	memory.SwapUsed = memory.SwapTotal - memory.SwapFree
@@ -74,10 +72,20 @@ func GetMemoryUsageSystem() MemoryUsage {
 		memory.Used = memory.Total - memory.Free - memory.Buffers - memory.Cached
 	}
 
-	return MemoryUsage{
-		Total:     memory.Total,
-		Used:      memory.Used,
-		SwapTotal: memory.SwapTotal,
-		SwapUsed:  memory.SwapUsed,
+	return memory, nil
+}
+
+func GetMemoryDetailsSystem() (MemoryState, MemoryUsage) {
+	memory, err := GetMemorySystem()
+	if err != nil {
+		SleepyWarnLn("Failed to get memory details! (%s)", err.Error())
+		return MemoryState{}, MemoryUsage{}
 	}
+	return MemoryState{
+			Total:     memory.Total,
+			SwapTotal: memory.SwapTotal,
+		}, MemoryUsage{
+			Used:     (float32(memory.Used) / float32(memory.Total+1)) * 100,
+			SwapUsed: (float32(memory.SwapUsed) / float32(memory.SwapTotal+1)) * 100,
+		}
 }

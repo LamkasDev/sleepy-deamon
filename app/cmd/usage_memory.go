@@ -4,18 +4,21 @@ import (
 	"runtime"
 )
 
-type MemoryUsage struct {
+type MemoryState struct {
 	Total     uint64 `json:"total"`
-	Used      uint64 `json:"used"`
 	SwapTotal uint64 `json:"swapTotal"`
-	SwapUsed  uint64 `json:"swapUsed"`
 }
 
-func GetMemoryUsage() MemoryUsage {
+type MemoryUsage struct {
+	Used     float32 `json:"used"`
+	SwapUsed float32 `json:"swapUsed"`
+}
+
+func GetMemoryDetails() (MemoryState, MemoryUsage) {
 	switch runtime.GOOS {
 	case "linux", "windows":
-		return GetMemoryUsageSystem()
+		return GetMemoryDetailsSystem()
 	default:
-		return MemoryUsage{}
+		return MemoryState{}, MemoryUsage{}
 	}
 }

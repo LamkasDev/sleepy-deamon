@@ -7,7 +7,7 @@ import (
 	"unsafe"
 )
 
-type MemoryUsageWindowsRaw struct {
+type MemoryWindowsRaw struct {
 	Length               uint32
 	MemoryLoad           uint32
 	TotalPhys            uint64
@@ -19,20 +19,28 @@ type MemoryUsageWindowsRaw struct {
 	AvailExtendedVirtual uint64
 }
 
-func GetMemoryUsageSystem() MemoryUsage {
-	var memory MemoryUsageWindowsRaw
+func GetMemorySystem() (MemoryWindowsRaw, error) {
+	var memory MemoryWindowsRaw
 	memory.Length = uint32(unsafe.Sizeof(memory))
-
 	ret, _, err := globalMemoryStatusEx.Call(uintptr(unsafe.Pointer(&memory)))
 	if ret == 0 {
-		SleepyWarnLn("Failed to get RAM usage! (%s)", err.Error())
-		return MemoryUsage{}
+		return MemoryWindowsRaw{}, err
 	}
 
-	return MemoryUsage{
-		Total:     memory.TotalPhys,
-		Used:      memory.TotalPhys - memory.AvailPhys,
-		SwapTotal: memory.TotalPageFile,
-		SwapUsed:  memory.TotalPageFile - memory.AvailPageFile,
+	return memory, nil
+}
+
+func GetMemoryDetailsSystem() (MemoryState, MemoryUsage) {
+	memory, err := GetMemorySystem()
+	if err != nil {
+		SleepyWarnLn("Failed to get memory details! (%s)", err.Error())
+		return MemoryState{}, MemoryUsage{}
 	}
+	return MemoryState{
+			Total:     memory.TotalPhys,
+			SwapTotal: memory.TotalPageFile,
+		}, MemoryUsage{
+			Used:     (float32(memory.AvailPhys) / float32(memory.TotalPhys+1)) * 100,
+			SwapUsed: (float32(memory.AvailPageFile) / float32(memory.TotalPageFile+1)) * 100,
+		}
 }

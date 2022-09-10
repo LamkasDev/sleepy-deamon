@@ -11,11 +11,16 @@ type Config struct {
 }
 
 type ConfigDatabaseCredentials struct {
-	Host      string   `json:"host"`
-	Port      string   `json:"port"`
-	Username  string   `json:"username"`
-	Password  string   `json:"password"`
-	Databases []string `json:"databases"`
+	Host      string                              `json:"host"`
+	Port      string                              `json:"port"`
+	Username  string                              `json:"username"`
+	Password  string                              `json:"password"`
+	Databases []ConfigDatabaseCredentialsDatabase `json:"databases"`
+}
+
+type ConfigDatabaseCredentialsDatabase struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
 }
 
 func NewConfig() Config {

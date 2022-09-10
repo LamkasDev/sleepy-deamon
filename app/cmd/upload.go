@@ -17,6 +17,7 @@ const (
 type UploadFileBackupDatabaseData struct {
 	Type     string `json:"type"`
 	Database string `json:"database"`
+	Task     string `json:"task"`
 }
 
 func UploadFile(handler *Handler, path string, data any) error {

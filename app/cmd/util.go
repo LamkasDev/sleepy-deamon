@@ -8,6 +8,14 @@ import (
 	"strings"
 )
 
+func MathMin(n int64, min int64) int64 {
+	if n < min {
+		return min
+	}
+
+	return n
+}
+
 func ArrayMap[I any, O any, F func(I) O](array []I, mapFunc F) []O {
 	res := []O{}
 	for _, e := range array {

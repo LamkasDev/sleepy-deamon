@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
-	"path/filepath"
 	"runtime"
 	"time"
 
@@ -23,6 +22,8 @@ const (
 
 	WebsocketMessageTypeRequestStats      string = "DAEMON_REQUEST_STATS"
 	WebsocketMessageTypeRequestStatsReply string = "DAEMON_REQUEST_STATS_REPLY"
+
+	WebsocketMessageTypeTaskProgress string = "DAEMON_TASK_PROGRESS"
 )
 
 const (
@@ -40,9 +41,10 @@ type WebsocketMessage struct {
 }
 
 type WebsocketAuthMessage struct {
-	Type    string `json:"type"`
-	Token   string `json:"token"`
-	Version string `json:"version"`
+	Type      string   `json:"type"`
+	Token     string   `json:"token"`
+	Version   string   `json:"version"`
+	Databases []string `json:"databases"`
 }
 
 type WebsocketAuthSuccessMessage struct {
@@ -91,6 +93,8 @@ type WebsocketRequestResourcesSoftware struct {
 type WebsocketRequestDatabaseBackupMessage struct {
 	Type     string `json:"type"`
 	Database string `json:"database"`
+	Task     string `json:"task"`
+	File     string `json:"file"`
 }
 
 type WebsocketRequestStatsReplyMessage struct {
@@ -100,6 +104,19 @@ type WebsocketRequestStatsReplyMessage struct {
 	Disks      []DiskUsage      `json:"disks"`
 	Network    NetworkUsage     `json:"network"`
 	Containers []ContainerUsage `json:"containers"`
+}
+
+const (
+	TaskStatusRunning  string = "RUNNING"
+	TaskStatusFailed   string = "FAILED"
+	TaskStatusFinished string = "FINISHED"
+)
+
+type WebsocketTaskProgressMessage struct {
+	Type     string  `json:"type"`
+	Task     string  `json:"task"`
+	Progress float32 `json:"progress"`
+	Status   string  `json:"status"`
 }
 
 func ConnectWebsocket(handler *Handler) *websocket.Conn {
@@ -119,9 +136,15 @@ func ConnectWebsocket(handler *Handler) *websocket.Conn {
 	SleepyLogLn("Connected!")
 
 	authMessage := WebsocketAuthMessage{
-		Type:    WebsocketMessageTypeAuth,
-		Token:   handler.Config.Token,
-		Version: DaemonVersion,
+		Type:      WebsocketMessageTypeAuth,
+		Token:     handler.Config.Token,
+		Version:   DaemonVersion,
+		Databases: []string{},
+	}
+	for _, e := range handler.Config.DatabaseCredentials {
+		for _, j := range e.Databases {
+			authMessage.Databases = append(authMessage.Databases, j.ID)
+		}
 	}
 	ws.WriteJSON(authMessage)
 
@@ -201,20 +224,35 @@ func ProcessWebsocket(handler *Handler, ws *websocket.Conn) error {
 		case WebsocketMessageTypeRequestDatabaseBackup:
 			var message WebsocketRequestDatabaseBackupMessage
 			_ = json.Unmarshal(messageRaw, &message)
-			err := CreateBackup(handler, message.Database)
+
+			taskProgressMessage := WebsocketTaskProgressMessage{
+				Type:   WebsocketMessageTypeTaskProgress,
+				Task:   message.Task,
+				Status: TaskStatusRunning,
+			}
+			path, err := CreateBackup(handler, message.Database)
 			if err != nil {
 				SleepyWarnLn("Failed to create a database backup! (%s)", err.Error())
+				taskProgressMessage.Status = TaskStatusFailed
+				ws.WriteJSON(taskProgressMessage)
 				continue
 			}
 
 			uploadFileData := UploadFileBackupDatabaseData{
 				Type:     UploadFileDataBackupDatabase,
 				Database: message.Database,
+				Task:     message.Task,
 			}
-			err = UploadFile(handler, filepath.Join(handler.Directory, "dump", fmt.Sprintf("%s.sql", message.Database)), uploadFileData)
+			err = UploadFile(handler, path, uploadFileData)
 			if err != nil {
 				SleepyWarnLn("Failed to upload database backup! (%s)", err.Error())
+				taskProgressMessage.Status = TaskStatusFailed
+				ws.WriteJSON(taskProgressMessage)
+				continue
 			}
+			taskProgressMessage.Status = TaskStatusFinished
+			taskProgressMessage.Progress = 100
+			ws.WriteJSON(taskProgressMessage)
 		case WebsocketMessageTypeRequestStats:
 			requestStatsReplyMessage := GetStatsMessage(handler)
 			requestStatsReplyMessage.Type = WebsocketMessageTypeRequestStatsReply
@@ -244,14 +282,8 @@ func GetStatsMessage(handler *Handler) WebsocketRequestStatsReplyMessage {
 
 	networkUsage := GetNetworkUsage()
 	message.Network = NetworkUsage{
-		RX: (networkUsage.RX - handler.StatsSnapshot.NetworkUsage.RX) / int64(timeDiff),
-		TX: (networkUsage.TX - handler.StatsSnapshot.NetworkUsage.TX) / int64(timeDiff),
-	}
-	if message.Network.RX < 0 {
-		message.Network.RX = 0
-	}
-	if message.Network.TX < 0 {
-		message.Network.TX = 0
+		RX: MathMin((networkUsage.RX-handler.StatsSnapshot.NetworkUsage.RX)/int64(timeDiff), 0),
+		TX: MathMin((networkUsage.TX-handler.StatsSnapshot.NetworkUsage.TX)/int64(timeDiff), 0),
 	}
 	handler.StatsSnapshot.NetworkUsage = networkUsage
 
@@ -267,15 +299,16 @@ func GetStatsMessage(handler *Handler) WebsocketRequestStatsReplyMessage {
 		if lastContainerUsageIndex == -1 {
 			continue
 		}
-		containerUsages = append(containerUsages, ContainerUsage{
+		containerUsage := ContainerUsage{
 			Parent: containerUsageSnapshot.Parent,
-			RX:     (containerUsageSnapshot.RX - handler.StatsSnapshot.ContainerUsages[lastContainerUsageIndex].RX) / int64(timeDiff),
-			TX:     (containerUsageSnapshot.TX - handler.StatsSnapshot.ContainerUsages[lastContainerUsageIndex].TX) / int64(timeDiff),
+			RX:     MathMin((containerUsageSnapshot.RX-handler.StatsSnapshot.ContainerUsages[lastContainerUsageIndex].RX)/int64(timeDiff), 0),
+			TX:     MathMin((containerUsageSnapshot.TX-handler.StatsSnapshot.ContainerUsages[lastContainerUsageIndex].TX)/int64(timeDiff), 0),
 			CPU:    containerUsageSnapshot.CPU,
 			Memory: containerUsageSnapshot.Memory,
 			Read:   (containerUsageSnapshot.Read - handler.StatsSnapshot.ContainerUsages[lastContainerUsageIndex].Read) / uint64(timeDiff),
 			Write:  (containerUsageSnapshot.Write - handler.StatsSnapshot.ContainerUsages[lastContainerUsageIndex].Write) / uint64(timeDiff),
-		})
+		}
+		containerUsages = append(containerUsages, containerUsage)
 	}
 	message.Containers = containerUsages
 	handler.StatsSnapshot.ContainerUsages = containerUsagesSnapshot

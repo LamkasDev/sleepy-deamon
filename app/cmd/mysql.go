@@ -9,26 +9,27 @@ import (
 	"strings"
 )
 
-func CreateBackup(handler *Handler, database string) error {
+func CreateBackup(handler *Handler, database string) (string, error) {
 	executable := GetMySQLDump()
 	if executable == "" {
-		return errors.New("could not find 'mysqldump'")
+		return "", errors.New("could not find 'mysqldump'")
 	}
 
 	for _, credentials := range handler.Config.DatabaseCredentials {
-		for _, db := range credentials.Databases {
-			if db == database {
-				err := exec.Command(executable, "-h", credentials.Host, "-P", credentials.Port, "-u", credentials.Username, "-p"+credentials.Password, db, "--result-file="+filepath.Join(handler.Directory, "dump", db+".sql")).Run()
+		for _, localDatabase := range credentials.Databases {
+			if localDatabase.ID == database {
+				path := filepath.Join(handler.Directory, "dump", localDatabase.Name+".sql")
+				err := exec.Command(executable, "-h", credentials.Host, "-P", credentials.Port, "-u", credentials.Username, "-p"+credentials.Password, localDatabase.Name, "--result-file="+path).Run()
 				if err != nil {
-					return err
+					return "", err
 				}
 
-				return nil
+				return path, nil
 			}
 		}
 	}
 
-	return errors.New("database isn't specified in the config")
+	return "", errors.New("database isn't specified in the config")
 }
 
 func GetMySQLDump() string {

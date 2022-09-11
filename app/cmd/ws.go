@@ -93,6 +93,7 @@ type WebsocketRequestResourcesSoftware struct {
 type WebsocketRequestDatabaseBackupMessage struct {
 	Type     string `json:"type"`
 	Database string `json:"database"`
+	Data     bool   `json:"data"`
 	Task     string `json:"task"`
 	File     string `json:"file"`
 }
@@ -230,7 +231,12 @@ func ProcessWebsocket(handler *Handler, ws *websocket.Conn) error {
 				Task:   message.Task,
 				Status: TaskStatusRunning,
 			}
-			path, err := CreateBackup(handler, message.Database)
+			var path string
+			if message.Data {
+				path, err = CreateBackup(handler, message.Database)
+			} else {
+				path, err = CreateBackup(handler, message.Database, "--no-data")
+			}
 			if err != nil {
 				SleepyWarnLn("Failed to create a database backup! (%s)", err.Error())
 				taskProgressMessage.Status = TaskStatusFailed

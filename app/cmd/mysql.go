@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-func CreateBackup(handler *Handler, database string) (string, error) {
+func CreateBackup(handler *Handler, database string, args ...string) (string, error) {
 	executable := GetMySQLDump()
 	if executable == "" {
 		return "", errors.New("could not find 'mysqldump'")
@@ -19,7 +19,10 @@ func CreateBackup(handler *Handler, database string) (string, error) {
 		for _, localDatabase := range credentials.Databases {
 			if localDatabase.ID == database {
 				path := filepath.Join(handler.Directory, "dump", localDatabase.Name+".sql")
-				err := exec.Command(executable, "-h", credentials.Host, "-P", credentials.Port, "-u", credentials.Username, "-p"+credentials.Password, localDatabase.Name, "--result-file="+path).Run()
+				cmdArgs := []string{"-h", credentials.Host, "-P", credentials.Port, "-u", credentials.Username, "-p" + credentials.Password}
+				cmdArgs = append(cmdArgs, args...)
+				cmdArgs = append(cmdArgs, localDatabase.Name, "--result-file="+path)
+				err := exec.Command(executable, cmdArgs...).Run()
 				if err != nil {
 					return "", err
 				}

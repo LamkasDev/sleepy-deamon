@@ -24,6 +24,10 @@ const (
 	WebsocketMessageTypeRequestStatsReply string = "DAEMON_REQUEST_STATS_REPLY"
 
 	WebsocketMessageTypeTaskProgress string = "DAEMON_TASK_PROGRESS"
+
+	WebsocketMessageTypeConnectContainerLog    string = "DAEMON_CONNECT_CONTAINER_LOG"
+	WebsocketMessageTypeDisconnectContainerLog string = "DAEMON_DISCONNECT_CONTAINER_LOG"
+	WebsocketMessageTypeContainerLogMessage    string = "DAEMON_CONTAINER_LOG_MESSAGE"
 )
 
 const (
@@ -118,6 +122,26 @@ type WebsocketTaskProgressMessage struct {
 	Task     string  `json:"task"`
 	Progress float32 `json:"progress"`
 	Status   string  `json:"status"`
+}
+
+type WebsocketConnectContainerLogMessage struct {
+	Type      string                             `json:"type"`
+	Container WebsocketConnectContainerContainer `json:"container"`
+}
+type WebsocketConnectContainerContainer struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+type WebsocketDisconnectContainerLogMessage struct {
+	Type      string `json:"type"`
+	Container string `json:"container"`
+}
+
+type WebsocketContainerLogMessageMessage struct {
+	Type      string `json:"type"`
+	Container string `json:"container"`
+	Message   string `json:"message"`
 }
 
 func ConnectWebsocket(handler *Handler) *websocket.Conn {
@@ -263,6 +287,16 @@ func ProcessWebsocket(handler *Handler, ws *websocket.Conn) error {
 			requestStatsReplyMessage := GetStatsMessage(handler)
 			requestStatsReplyMessage.Type = WebsocketMessageTypeRequestStatsReply
 			ws.WriteJSON(requestStatsReplyMessage)
+		case WebsocketMessageTypeConnectContainerLog:
+			var message WebsocketConnectContainerLogMessage
+			_ = json.Unmarshal(messageRaw, &message)
+
+			ConnectContainerLogger(handler, message.Container)
+		case WebsocketMessageTypeDisconnectContainerLog:
+			var message WebsocketDisconnectContainerLogMessage
+			_ = json.Unmarshal(messageRaw, &message)
+
+			DisconnectContainerLogger(handler, message.Container)
 		}
 	}
 }

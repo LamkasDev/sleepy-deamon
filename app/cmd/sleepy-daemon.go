@@ -20,6 +20,7 @@ type Handler struct {
 	StatsSnapshot HandlerStatsSnapshot
 	WS            *websocket.Conn
 	Session       *Session
+	LogManager    DaemonLogManager
 }
 
 type HandlerStatsSnapshot struct {
@@ -53,6 +54,7 @@ func CreateHandler(configName string) Handler {
 	}
 	handler.StatsSnapshot.NetworkUsage = GetNetworkUsage()
 	handler.StatsSnapshot.ContainerUsages = GetContainerUsages()
+	handler.LogManager.Containers = make(map[string]DaemonLogItem)
 
 	return handler
 }

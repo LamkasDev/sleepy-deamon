@@ -8,27 +8,21 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"runtime"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
 )
 
 type Handler struct {
-	Directory     string
-	Config        Config
-	StatsSnapshot HandlerStatsSnapshot
-	WS            *websocket.Conn
-	Session       *Session
-	LogManager    DaemonLogManager
-}
-
-type HandlerStatsSnapshot struct {
-	Timestamp          time.Time
-	RawCPUUsage        CPUUsageRaw
-	LinuxRawDiskUsages []DiskUsageLinuxRaw
-	NetworkUsage       NetworkUsage
-	ContainerUsages    []ContainerUsage
+	Directory    string
+	Config       Config
+	LastSnapshot HandlerSnapshot
+	LastCache    HandlerCache
+	WSMutex      *sync.Mutex
+	WS           *websocket.Conn
+	Session      *Session
+	LogManager   DaemonLogManager
 }
 
 func CreateHandler(configName string) Handler {
@@ -47,14 +41,6 @@ func CreateHandler(configName string) Handler {
 		closeDaemon(&handler)
 		return handler
 	}
-	handler.StatsSnapshot.Timestamp = time.Now()
-	handler.StatsSnapshot.RawCPUUsage = GetCPUUsage()
-	if runtime.GOOS == "linux" {
-		handler.StatsSnapshot.LinuxRawDiskUsages = GetDiskUsagesLinux()
-	}
-	handler.StatsSnapshot.NetworkUsage = GetNetworkUsage()
-	handler.StatsSnapshot.ContainerUsages = GetContainerUsages()
-	handler.LogManager.Containers = make(map[string]DaemonLogItem)
 
 	return handler
 }
@@ -80,8 +66,14 @@ func main() {
 	var ws *websocket.Conn
 	defer ws.Close()
 
+	// Websocket processsing
 	var wsLoop func()
 	wsLoop = func() {
+		// Create mutex
+		mutex := sync.Mutex{}
+		handler.WSMutex = &mutex
+
+		// Connect websocket to server
 		ws := ConnectWebsocket(&handler)
 		if ws == nil {
 			time.Sleep(time.Second * time.Duration(handler.Config.ReconnectTimeout))
@@ -89,15 +81,23 @@ func main() {
 			return
 		}
 		handler.WS = ws
+
+		// Authenticate and process messages (blocking)
+		AuthWebsocket(&handler)
 		ProcessWebsocket(&handler, ws)
+
+		// Something happened, so let's prepare for a fresh start
+		handler.WSMutex = nil
 		handler.WS = nil
 		handler.Session = nil
+
+		// After ReconnectTimeout passed, try again
 		time.Sleep(time.Second * time.Duration(handler.Config.ReconnectTimeout))
 		go wsLoop()
 	}
 	go wsLoop()
 
-	// Exit
+	// Wait for exit
 	for {
 		select {
 		case <-interrupt:

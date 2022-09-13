@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"runtime"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -26,6 +27,7 @@ const (
 	WebsocketMessageTypeTaskProgress string = "DAEMON_TASK_PROGRESS"
 
 	WebsocketMessageTypeConnectContainerLog    string = "DAEMON_CONNECT_CONTAINER_LOG"
+	WebsocketMessageTypeRequestContainerLog    string = "DAEMON_REQUEST_CONTAINER_LOG"
 	WebsocketMessageTypeDisconnectContainerLog string = "DAEMON_DISCONNECT_CONTAINER_LOG"
 	WebsocketMessageTypeContainerLogMessage    string = "DAEMON_CONTAINER_LOG_MESSAGE"
 )
@@ -119,7 +121,7 @@ const (
 
 type WebsocketTaskProgressMessage struct {
 	Type     string  `json:"type"`
-	Task     string  `json:"task"`
+	ID       string  `json:"id"`
 	Progress float32 `json:"progress"`
 	Status   string  `json:"status"`
 }
@@ -127,21 +129,33 @@ type WebsocketTaskProgressMessage struct {
 type WebsocketConnectContainerLogMessage struct {
 	Type      string                             `json:"type"`
 	Container WebsocketConnectContainerContainer `json:"container"`
+	Options   WebsocketConnectContainerOptions   `json:"options"`
 }
 type WebsocketConnectContainerContainer struct {
+	ID   string  `json:"id"`
+	Name string  `json:"name"`
+	Path *string `json:"path"`
+}
+type WebsocketConnectContainerOptions struct {
+	Project bool   `json:"project"`
+	Tail    uint32 `json:"tail"`
+}
+
+type WebsocketRequestContainerLogMessage struct {
+	Type string `json:"type"`
 	ID   string `json:"id"`
-	Name string `json:"name"`
+	Task string `json:"task"`
 }
 
 type WebsocketDisconnectContainerLogMessage struct {
-	Type      string `json:"type"`
-	Container string `json:"container"`
+	Type string `json:"type"`
+	ID   string `json:"id"`
 }
 
 type WebsocketContainerLogMessageMessage struct {
-	Type      string `json:"type"`
-	Container string `json:"container"`
-	Message   string `json:"message"`
+	Type    string `json:"type"`
+	ID      string `json:"id"`
+	Message string `json:"message"`
 }
 
 func ConnectWebsocket(handler *Handler) *websocket.Conn {
@@ -159,7 +173,10 @@ func ConnectWebsocket(handler *Handler) *websocket.Conn {
 		return nil
 	}
 	SleepyLogLn("Connected!")
+	return ws
+}
 
+func AuthWebsocket(handler *Handler) {
 	authMessage := WebsocketAuthMessage{
 		Type:      WebsocketMessageTypeAuth,
 		Token:     handler.Config.Token,
@@ -171,9 +188,13 @@ func ConnectWebsocket(handler *Handler) *websocket.Conn {
 			authMessage.Databases = append(authMessage.Databases, j.ID)
 		}
 	}
-	ws.WriteJSON(authMessage)
+	SendWebsocketMessage(handler, authMessage)
+}
 
-	return ws
+func SendWebsocketMessage(handler *Handler, message any) error {
+	handler.WSMutex.Lock()
+	defer handler.WSMutex.Unlock()
+	return handler.WS.WriteJSON(message)
 }
 
 func ProcessWebsocket(handler *Handler, ws *websocket.Conn) error {
@@ -200,6 +221,7 @@ func ProcessWebsocket(handler *Handler, ws *websocket.Conn) error {
 				Name: message.Name,
 			}
 			SleepyLogLn("Logged in as %s! (id: %s)", handler.Session.Name, handler.Session.ID)
+			InitSnapshot(handler)
 		case WebsocketMessageTypeAuthFailure:
 			var message WebsocketAuthFailureMessage
 			_ = json.Unmarshal(messageRaw, &message)
@@ -221,38 +243,15 @@ func ProcessWebsocket(handler *Handler, ws *websocket.Conn) error {
 		case WebsocketMessageTypeRequestResources:
 			var message WebsocketRequestResourcesMessage
 			_ = json.Unmarshal(messageRaw, &message)
-
-			requestResourcesReplyMessage := WebsocketRequestResourcesReplyMessage{
-				Type: WebsocketMessageTypeRequestResourcesReply,
-			}
-			for _, resource := range message.Resources {
-				switch resource {
-				case WebsocketResourcesGeneralType:
-					memory, _ := GetMemoryDetails()
-					requestResourcesReplyMessage.Memory = &memory
-					requestResourcesReplyMessage.Software = []WebsocketRequestResourcesSoftware{}
-					zfs := GetZFSVersion()
-					if zfs != nil {
-						requestResourcesReplyMessage.Software = append(requestResourcesReplyMessage.Software,
-							WebsocketRequestResourcesSoftware{"zfs", *zfs},
-						)
-					}
-				case WebsocketResourcesContainersType:
-					requestResourcesReplyMessage.Containers, requestResourcesReplyMessage.ContainerProjects = GetContainers(handler)
-				case WebsocketResourcesDisksType:
-					requestResourcesReplyMessage.Disks = GetDisks()
-					requestResourcesReplyMessage.ZFSPools = GetZFSPools(requestResourcesReplyMessage.Disks)
-				}
-			}
-
-			ws.WriteJSON(requestResourcesReplyMessage)
+			requestResourcesReplyMessage := GetResourcesMessage(handler, message.Resources)
+			SendWebsocketMessage(handler, requestResourcesReplyMessage)
 		case WebsocketMessageTypeRequestDatabaseBackup:
 			var message WebsocketRequestDatabaseBackupMessage
 			_ = json.Unmarshal(messageRaw, &message)
 
 			taskProgressMessage := WebsocketTaskProgressMessage{
 				Type:   WebsocketMessageTypeTaskProgress,
-				Task:   message.Task,
+				ID:     message.Task,
 				Status: TaskStatusRunning,
 			}
 			var path string
@@ -264,7 +263,7 @@ func ProcessWebsocket(handler *Handler, ws *websocket.Conn) error {
 			if err != nil {
 				SleepyWarnLn("Failed to create a database backup! (%s)", err.Error())
 				taskProgressMessage.Status = TaskStatusFailed
-				ws.WriteJSON(taskProgressMessage)
+				SendWebsocketMessage(handler, taskProgressMessage)
 				continue
 			}
 
@@ -277,127 +276,194 @@ func ProcessWebsocket(handler *Handler, ws *websocket.Conn) error {
 			if err != nil {
 				SleepyWarnLn("Failed to upload database backup! (%s)", err.Error())
 				taskProgressMessage.Status = TaskStatusFailed
-				ws.WriteJSON(taskProgressMessage)
+				SendWebsocketMessage(handler, taskProgressMessage)
 				continue
 			}
 			taskProgressMessage.Status = TaskStatusFinished
 			taskProgressMessage.Progress = 100
-			ws.WriteJSON(taskProgressMessage)
+			SendWebsocketMessage(handler, taskProgressMessage)
 		case WebsocketMessageTypeRequestStats:
 			requestStatsReplyMessage := GetStatsMessage(handler)
 			requestStatsReplyMessage.Type = WebsocketMessageTypeRequestStatsReply
-			ws.WriteJSON(requestStatsReplyMessage)
+			SendWebsocketMessage(handler, requestStatsReplyMessage)
 		case WebsocketMessageTypeConnectContainerLog:
 			var message WebsocketConnectContainerLogMessage
 			_ = json.Unmarshal(messageRaw, &message)
 
-			ConnectContainerLogger(handler, message.Container)
+			ConnectContainerLogger(handler, message.Container, message.Options)
+		case WebsocketMessageTypeRequestContainerLog:
+			var message WebsocketRequestContainerLogMessage
+			_ = json.Unmarshal(messageRaw, &message)
+
+			for _, container := range handler.LastCache.Containers {
+				if container.ID == message.ID {
+					RequestContainerLog(handler, container, message.Task)
+				}
+			}
 		case WebsocketMessageTypeDisconnectContainerLog:
 			var message WebsocketDisconnectContainerLogMessage
 			_ = json.Unmarshal(messageRaw, &message)
 
-			DisconnectContainerLogger(handler, message.Container)
+			DisconnectContainerLogger(handler, message.ID)
 		}
 	}
 }
 
+func GetResourcesMessage(handler *Handler, resources []string) WebsocketRequestResourcesReplyMessage {
+	message := WebsocketRequestResourcesReplyMessage{
+		Type: WebsocketMessageTypeRequestResourcesReply,
+	}
+
+	var wg sync.WaitGroup
+	for _, resource := range resources {
+		wg.Add(1)
+		go func(resource string) {
+			defer wg.Done()
+			switch resource {
+			case WebsocketResourcesGeneralType:
+				memory, _ := GetMemoryDetails()
+				message.Memory = &memory
+				message.Software = []WebsocketRequestResourcesSoftware{}
+				zfs := GetZFSVersion()
+				if zfs != nil {
+					message.Software = append(message.Software,
+						WebsocketRequestResourcesSoftware{"zfs", *zfs},
+					)
+				}
+			case WebsocketResourcesContainersType:
+				message.Containers, message.ContainerProjects = GetContainers(handler)
+				handler.LastCache.Containers = message.Containers
+				handler.LastCache.ContainerProjects = message.ContainerProjects
+			case WebsocketResourcesDisksType:
+				message.Disks = GetDisks()
+				message.ZFSPools = GetZFSPools(message.Disks)
+			}
+		}(resource)
+	}
+	wg.Wait()
+
+	return message
+}
+
 func GetStatsMessage(handler *Handler) WebsocketRequestStatsReplyMessage {
-	timeDiff := uint64(time.Since(handler.StatsSnapshot.Timestamp).Seconds())
-	handler.StatsSnapshot.Timestamp = time.Now()
+	timeDiff := uint64(time.Since(handler.LastSnapshot.Timestamp).Seconds())
+	handler.LastSnapshot.Timestamp = time.Now()
 	message := WebsocketRequestStatsReplyMessage{
 		CPU:   CPUUsage{},
 		Disks: []DiskUsage{},
 	}
 
-	_, memory := GetMemoryDetails()
-	message.Memory = memory
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		_, memory := GetMemoryDetails()
+		message.Memory = memory
+	}()
 
-	rawCpuUsage := GetCPUUsage()
-	rawCpuTotal := float32(rawCpuUsage.Total - handler.StatsSnapshot.RawCPUUsage.Total)
-	message.CPU = CPUUsage{
-		User:   (float32(rawCpuUsage.User-handler.StatsSnapshot.RawCPUUsage.User) / rawCpuTotal) * 100,
-		System: (float32(rawCpuUsage.System-handler.StatsSnapshot.RawCPUUsage.System) / rawCpuTotal) * 100,
-	}
-	handler.StatsSnapshot.RawCPUUsage = rawCpuUsage
-
-	networkUsage := GetNetworkUsage()
-	message.Network = NetworkUsage{
-		RX: MathMin((networkUsage.RX-handler.StatsSnapshot.NetworkUsage.RX)/int64(timeDiff), 0),
-		TX: MathMin((networkUsage.TX-handler.StatsSnapshot.NetworkUsage.TX)/int64(timeDiff), 0),
-	}
-	handler.StatsSnapshot.NetworkUsage = networkUsage
-
-	containerUsagesSnapshot := GetContainerUsages()
-	var containerUsages []ContainerUsage
-	for _, containerUsageSnapshot := range containerUsagesSnapshot {
-		lastContainerUsageIndex := -1
-		for i, tempContainerUsage := range handler.StatsSnapshot.ContainerUsages {
-			if containerUsageSnapshot.Parent == tempContainerUsage.Parent {
-				lastContainerUsageIndex = i
-			}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		rawCpuUsage := GetCPUUsage()
+		rawCpuTotal := float32(rawCpuUsage.Total - handler.LastSnapshot.RawCPUUsage.Total)
+		message.CPU = CPUUsage{
+			User:   (float32(rawCpuUsage.User-handler.LastSnapshot.RawCPUUsage.User) / rawCpuTotal) * 100,
+			System: (float32(rawCpuUsage.System-handler.LastSnapshot.RawCPUUsage.System) / rawCpuTotal) * 100,
 		}
-		if lastContainerUsageIndex == -1 {
-			continue
-		}
-		containerUsage := ContainerUsage{
-			Parent: containerUsageSnapshot.Parent,
-			RX:     MathMin((containerUsageSnapshot.RX-handler.StatsSnapshot.ContainerUsages[lastContainerUsageIndex].RX)/int64(timeDiff), 0),
-			TX:     MathMin((containerUsageSnapshot.TX-handler.StatsSnapshot.ContainerUsages[lastContainerUsageIndex].TX)/int64(timeDiff), 0),
-			CPU:    containerUsageSnapshot.CPU,
-			Memory: containerUsageSnapshot.Memory,
-			Read:   (containerUsageSnapshot.Read - handler.StatsSnapshot.ContainerUsages[lastContainerUsageIndex].Read) / uint64(timeDiff),
-			Write:  (containerUsageSnapshot.Write - handler.StatsSnapshot.ContainerUsages[lastContainerUsageIndex].Write) / uint64(timeDiff),
-		}
-		containerUsages = append(containerUsages, containerUsage)
-	}
-	message.Containers = containerUsages
-	handler.StatsSnapshot.ContainerUsages = containerUsagesSnapshot
+		handler.LastSnapshot.RawCPUUsage = rawCpuUsage
+	}()
 
-	switch runtime.GOOS {
-	case "linux":
-		disks := GetDisks()
-		diskUsagesSnapshot := GetDiskUsagesLinux()
-		var diskUsages []DiskUsage
-		for _, rawDiskUsage := range diskUsagesSnapshot {
-			lastDiskUsageIndex := -1
-			for i, diskUsage := range handler.StatsSnapshot.LinuxRawDiskUsages {
-				if diskUsage.Name == rawDiskUsage.Name {
-					lastDiskUsageIndex = i
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		networkUsage := GetNetworkUsage()
+		message.Network = NetworkUsage{
+			RX: MathMin((networkUsage.RX-handler.LastSnapshot.NetworkUsage.RX)/int64(timeDiff), 0),
+			TX: MathMin((networkUsage.TX-handler.LastSnapshot.NetworkUsage.TX)/int64(timeDiff), 0),
+		}
+		handler.LastSnapshot.NetworkUsage = networkUsage
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		containerUsagesSnapshot := GetContainerUsages()
+		var containerUsages []ContainerUsage
+		for _, containerUsageSnapshot := range containerUsagesSnapshot {
+			lastContainerUsageIndex := -1
+			for i, tempContainerUsage := range handler.LastSnapshot.ContainerUsages {
+				if containerUsageSnapshot.Parent == tempContainerUsage.Parent {
+					lastContainerUsageIndex = i
 				}
 			}
-			if lastDiskUsageIndex == -1 {
+			if lastContainerUsageIndex == -1 {
 				continue
 			}
-			matchingDiskIndex := -1
-			for i, disk := range disks {
-				if disk.Name == rawDiskUsage.Name {
-					matchingDiskIndex = i
-				}
+			containerUsage := ContainerUsage{
+				Parent: containerUsageSnapshot.Parent,
+				RX:     MathMin((containerUsageSnapshot.RX-handler.LastSnapshot.ContainerUsages[lastContainerUsageIndex].RX)/int64(timeDiff), 0),
+				TX:     MathMin((containerUsageSnapshot.TX-handler.LastSnapshot.ContainerUsages[lastContainerUsageIndex].TX)/int64(timeDiff), 0),
+				CPU:    containerUsageSnapshot.CPU,
+				Memory: containerUsageSnapshot.Memory,
+				Read:   (containerUsageSnapshot.Read - handler.LastSnapshot.ContainerUsages[lastContainerUsageIndex].Read) / uint64(timeDiff),
+				Write:  (containerUsageSnapshot.Write - handler.LastSnapshot.ContainerUsages[lastContainerUsageIndex].Write) / uint64(timeDiff),
 			}
-			if matchingDiskIndex == -1 {
-				continue
-			}
-			readsDiff := rawDiskUsage.Reads - handler.StatsSnapshot.LinuxRawDiskUsages[lastDiskUsageIndex].Reads
-			if readsDiff <= 0 {
-				readsDiff = 1
-			}
-			writesDiff := rawDiskUsage.Writes - handler.StatsSnapshot.LinuxRawDiskUsages[lastDiskUsageIndex].Writes
-			if writesDiff <= 0 {
-				writesDiff = 1
-			}
-
-			diskUsages = append(diskUsages, DiskUsage{
-				Parent:       disks[matchingDiskIndex].ID,
-				Read:         ((rawDiskUsage.ReadSectors - handler.StatsSnapshot.LinuxRawDiskUsages[lastDiskUsageIndex].ReadSectors) * 512) / timeDiff,
-				Write:        ((rawDiskUsage.WriteSectors - handler.StatsSnapshot.LinuxRawDiskUsages[lastDiskUsageIndex].WriteSectors) * 512) / timeDiff,
-				ReadLatency:  ((rawDiskUsage.ReadTime - handler.StatsSnapshot.LinuxRawDiskUsages[lastDiskUsageIndex].ReadTime) / readsDiff),
-				WriteLatency: ((rawDiskUsage.WriteTime - handler.StatsSnapshot.LinuxRawDiskUsages[lastDiskUsageIndex].WriteTime) / writesDiff),
-			})
-			// SleepyLogLn("Adding... (name: %s, id: %s, read: %v, write: %v, timeDiff: %v)", disks[matchingDiskIndex].Name, disks[matchingDiskIndex].ID, diskUsage.Read, diskUsage.Write, timeDiff)
+			containerUsages = append(containerUsages, containerUsage)
 		}
-		message.Disks = diskUsages
-		handler.StatsSnapshot.LinuxRawDiskUsages = diskUsagesSnapshot
-	}
+		message.Containers = containerUsages
+		handler.LastSnapshot.ContainerUsages = containerUsagesSnapshot
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		switch runtime.GOOS {
+		case "linux":
+			disks := GetDisks()
+			diskUsagesSnapshot := GetDiskUsagesLinux()
+			var diskUsages []DiskUsage
+			for _, rawDiskUsage := range diskUsagesSnapshot {
+				lastDiskUsageIndex := -1
+				for i, diskUsage := range handler.LastSnapshot.LinuxRawDiskUsages {
+					if diskUsage.Name == rawDiskUsage.Name {
+						lastDiskUsageIndex = i
+					}
+				}
+				if lastDiskUsageIndex == -1 {
+					continue
+				}
+				matchingDiskIndex := -1
+				for i, disk := range disks {
+					if disk.Name == rawDiskUsage.Name {
+						matchingDiskIndex = i
+					}
+				}
+				if matchingDiskIndex == -1 {
+					continue
+				}
+				readsDiff := rawDiskUsage.Reads - handler.LastSnapshot.LinuxRawDiskUsages[lastDiskUsageIndex].Reads
+				if readsDiff <= 0 {
+					readsDiff = 1
+				}
+				writesDiff := rawDiskUsage.Writes - handler.LastSnapshot.LinuxRawDiskUsages[lastDiskUsageIndex].Writes
+				if writesDiff <= 0 {
+					writesDiff = 1
+				}
+
+				diskUsages = append(diskUsages, DiskUsage{
+					Parent:       disks[matchingDiskIndex].ID,
+					Read:         ((rawDiskUsage.ReadSectors - handler.LastSnapshot.LinuxRawDiskUsages[lastDiskUsageIndex].ReadSectors) * 512) / timeDiff,
+					Write:        ((rawDiskUsage.WriteSectors - handler.LastSnapshot.LinuxRawDiskUsages[lastDiskUsageIndex].WriteSectors) * 512) / timeDiff,
+					ReadLatency:  ((rawDiskUsage.ReadTime - handler.LastSnapshot.LinuxRawDiskUsages[lastDiskUsageIndex].ReadTime) / readsDiff),
+					WriteLatency: ((rawDiskUsage.WriteTime - handler.LastSnapshot.LinuxRawDiskUsages[lastDiskUsageIndex].WriteTime) / writesDiff),
+				})
+				// SleepyLogLn("Adding... (name: %s, id: %s, read: %v, write: %v, timeDiff: %v)", disks[matchingDiskIndex].Name, disks[matchingDiskIndex].ID, diskUsage.Read, diskUsage.Write, timeDiff)
+			}
+			message.Disks = diskUsages
+			handler.LastSnapshot.LinuxRawDiskUsages = diskUsagesSnapshot
+		}
+	}()
+	wg.Wait()
 
 	return message
 }

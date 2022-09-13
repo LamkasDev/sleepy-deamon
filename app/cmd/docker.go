@@ -32,11 +32,13 @@ type Container struct {
 	Mounts    string  `json:"mounts"`
 	Networks  string  `json:"networks"`
 	Directory string  `json:"directory"`
+	Log       string  `json:"log"`
 }
 
 type ContainerDetailsRaw struct {
 	StartedAt string                    `json:"State.StartedAt"`
 	Status    string                    `json:"State.Status"`
+	LogPath   string                    `json:"LogPath"`
 	Labels    ContainerDetailsLabelsRaw `json:"Config.Labels"`
 }
 
@@ -80,7 +82,7 @@ func GetContainersSystem(handler *Handler) ([]Container, []ContainerProject) {
 	containerProjects := make(map[string]ContainerProject)
 	containers := []Container{}
 	for _, containerRaw := range containersRaw {
-		detailedFields := `{"State.StartedAt":"{{.State.StartedAt}}","State.Status":"{{.State.Status}}","Config.Labels":{{json .Config.Labels}}}`
+		detailedFields := `{"State.StartedAt":"{{.State.StartedAt}}","State.Status":"{{.State.Status}}","LogPath":"{{.LogPath}}","Config.Labels":{{json .Config.Labels}}}`
 		containerStdout, err := exec.Command("docker", "inspect", "--format", detailedFields, containerRaw.ID).Output()
 		if err != nil {
 			SleepyWarnLn("Failed to get container details! (%s)", err.Error())
@@ -107,6 +109,7 @@ func GetContainersSystem(handler *Handler) ([]Container, []ContainerProject) {
 			Names:    containerRaw.Names,
 			Mounts:   containerRaw.Mounts,
 			Networks: containerRaw.Networks,
+			Log:      containerDetailed.LogPath,
 		}
 		if containerDetailed.Labels.Directory != nil {
 			id := GetMD5Hash(handler.Session.ID + *containerDetailed.Labels.Service)

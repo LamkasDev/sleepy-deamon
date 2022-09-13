@@ -12,12 +12,18 @@ import (
 
 const (
 	UploadFileDataBackupDatabase string = "BACKUP_DATABASE"
+	UploadFileDataContainerLog   string = "CONTAINER_LOG"
 )
 
 type UploadFileBackupDatabaseData struct {
 	Type     string `json:"type"`
 	Database string `json:"database"`
 	Task     string `json:"task"`
+}
+type UploadFileContainerLogData struct {
+	Type      string `json:"type"`
+	Container string `json:"container"`
+	Task      string `json:"task"`
 }
 
 func UploadFile(handler *Handler, path string, data any) error {

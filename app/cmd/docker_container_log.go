@@ -4,15 +4,11 @@ import (
 	"bufio"
 	"io"
 	"os/exec"
-	"runtime"
 	"strconv"
 )
 
 func RequestContainerLog(handler *Handler, container Container, task string) {
-	if runtime.GOOS != "linux" {
-		SleepyWarnLn("Failed to request container log! (%s)", "os not supported")
-		return
-	}
+	path := ConvertDockerPath(handler, container.Log)
 	taskProgressMessage := WebsocketTaskProgressMessage{
 		Type:   WebsocketMessageTypeTaskProgress,
 		ID:     task,
@@ -23,7 +19,7 @@ func RequestContainerLog(handler *Handler, container Container, task string) {
 		Container: container.ID,
 		Task:      task,
 	}
-	err := UploadFile(handler, container.Log, uploadFileData)
+	err := UploadFile(handler, path, uploadFileData)
 	if err != nil {
 		SleepyWarnLn("Failed to upload container log! (%s)", err.Error())
 		taskProgressMessage.Status = TaskStatusFailed

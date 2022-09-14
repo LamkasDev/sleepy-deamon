@@ -15,6 +15,7 @@ type HandlerSnapshot struct {
 }
 
 type HandlerCache struct {
+	DockerInfo        DockerInfo
 	Containers        []Container
 	ContainerProjects []ContainerProject
 }
@@ -50,6 +51,11 @@ func InitSnapshot(handler *Handler) {
 	go func() {
 		defer wg.Done()
 		handler.LastCache.Containers, handler.LastCache.ContainerProjects = GetContainers(handler)
+	}()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		handler.LastCache.DockerInfo = GetDockerInfo(handler)
 	}()
 	wg.Wait()
 

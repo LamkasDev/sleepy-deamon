@@ -2,7 +2,7 @@
 
 start() {
     cd /opt/sleepy-daemon
-    ./launcher-linux.sh &
+    ./service-linux.sh &
 }
 
 stop() {

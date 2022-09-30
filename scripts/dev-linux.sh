@@ -1,8 +1,9 @@
+#!/bin/bash
 # Build
-cd app/cmd
+cd ../cmd
 go build -o ../bin/sleepy-daemon .
 cd ../..
 
 # Run
 killall sleepy-daemon
-./app/bin/sleepy-daemon -config="dev.json"
+./dev/bin/sleepy-daemon -config="dev.json"

@@ -1,3 +1,4 @@
+#!/bin/bash
 # Settings
 SLEEPY_VERSION=$(cat current_version.txt)
 

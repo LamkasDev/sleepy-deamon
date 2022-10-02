@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
-	"runtime"
+	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -30,6 +32,8 @@ const (
 	WebsocketMessageTypeRequestContainerLog    string = "DAEMON_REQUEST_CONTAINER_LOG"
 	WebsocketMessageTypeDisconnectContainerLog string = "DAEMON_DISCONNECT_CONTAINER_LOG"
 	WebsocketMessageTypeContainerLogMessage    string = "DAEMON_CONTAINER_LOG_MESSAGE"
+
+	WebsocketMessageTypeBuildSmbConfig string = "DAEMON_BUILD_SMB_CONFIG"
 )
 
 const (
@@ -158,6 +162,11 @@ type WebsocketContainerLogMessageMessage struct {
 	Message string `json:"message"`
 }
 
+type WebsocketBuildSmbConfigMessage struct {
+	Type   string `json:"type"`
+	Config string `json:"config"`
+}
+
 func ConnectWebsocket(handler *Handler) *websocket.Conn {
 	u := url.URL{Host: handler.Config.DaemonHost, Path: "/socket"}
 	if handler.Config.Https {
@@ -183,7 +192,7 @@ func AuthWebsocket(handler *Handler) {
 		Version:   DaemonVersion,
 		Databases: []string{},
 	}
-	for _, e := range handler.Config.DatabaseCredentials {
+	for _, e := range handler.Credentials.Databases {
 		for _, j := range e.Databases {
 			authMessage.Databases = append(authMessage.Databases, j.ID)
 		}
@@ -305,6 +314,27 @@ func ProcessWebsocket(handler *Handler, ws *websocket.Conn) error {
 			_ = json.Unmarshal(messageRaw, &message)
 
 			DisconnectContainerLogger(handler, message.ID)
+		case WebsocketMessageTypeBuildSmbConfig:
+			var message WebsocketBuildSmbConfigMessage
+			_ = json.Unmarshal(messageRaw, &message)
+
+			// TODO: shut down previous docker compose
+
+			// TODO: make this better
+			config := message.Config
+			for _, user := range handler.Credentials.Smb {
+				config = strings.ReplaceAll(config, fmt.Sprintf("%%SMB_USER_%s_PASSWORD%%", user.ID), user.Password)
+			}
+
+			smbPath := filepath.Join(handler.Directory, "containers", "smb")
+			os.MkdirAll(smbPath, 0755)
+			err := os.WriteFile(filepath.Join(smbPath, "docker-compose.yml"), []byte(config), 0644)
+			if err != nil {
+				SleepyWarnLn("Failed to write smb config! (%s)", err.Error())
+				continue
+			}
+
+			// TODO: start new docker compose
 		}
 	}
 }
@@ -388,7 +418,7 @@ func GetStatsMessage(handler *Handler) WebsocketRequestStatsReplyMessage {
 	go func() {
 		defer wg.Done()
 		containerUsagesSnapshot := GetContainerUsages()
-		var containerUsages []ContainerUsage
+		var containerUsages []ContainerUsage = []ContainerUsage{}
 		for _, containerUsageSnapshot := range containerUsagesSnapshot {
 			lastContainerUsageIndex := -1
 			for i, tempContainerUsage := range handler.LastSnapshot.ContainerUsages {
@@ -417,51 +447,48 @@ func GetStatsMessage(handler *Handler) WebsocketRequestStatsReplyMessage {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		switch runtime.GOOS {
-		case "linux":
-			disks := GetDisks()
-			diskUsagesSnapshot := GetDiskUsagesLinux()
-			var diskUsages []DiskUsage
-			for _, rawDiskUsage := range diskUsagesSnapshot {
-				lastDiskUsageIndex := -1
-				for i, diskUsage := range handler.LastSnapshot.LinuxRawDiskUsages {
-					if diskUsage.Name == rawDiskUsage.Name {
-						lastDiskUsageIndex = i
-					}
+		disks := GetDisks()
+		diskUsagesSnapshot := GetDiskUsages()
+		var diskUsages []DiskUsage = []DiskUsage{}
+		for _, rawDiskUsage := range diskUsagesSnapshot {
+			lastDiskUsageIndex := -1
+			for i, diskUsage := range handler.LastSnapshot.RawDiskUsages {
+				if diskUsage.Name == rawDiskUsage.Name {
+					lastDiskUsageIndex = i
 				}
-				if lastDiskUsageIndex == -1 {
-					continue
-				}
-				matchingDiskIndex := -1
-				for i, disk := range disks {
-					if disk.Name == rawDiskUsage.Name {
-						matchingDiskIndex = i
-					}
-				}
-				if matchingDiskIndex == -1 {
-					continue
-				}
-				readsDiff := rawDiskUsage.Reads - handler.LastSnapshot.LinuxRawDiskUsages[lastDiskUsageIndex].Reads
-				if readsDiff <= 0 {
-					readsDiff = 1
-				}
-				writesDiff := rawDiskUsage.Writes - handler.LastSnapshot.LinuxRawDiskUsages[lastDiskUsageIndex].Writes
-				if writesDiff <= 0 {
-					writesDiff = 1
-				}
-
-				diskUsages = append(diskUsages, DiskUsage{
-					Parent:       disks[matchingDiskIndex].ID,
-					Read:         ((rawDiskUsage.ReadSectors - handler.LastSnapshot.LinuxRawDiskUsages[lastDiskUsageIndex].ReadSectors) * 512) / timeDiff,
-					Write:        ((rawDiskUsage.WriteSectors - handler.LastSnapshot.LinuxRawDiskUsages[lastDiskUsageIndex].WriteSectors) * 512) / timeDiff,
-					ReadLatency:  ((rawDiskUsage.ReadTime - handler.LastSnapshot.LinuxRawDiskUsages[lastDiskUsageIndex].ReadTime) / readsDiff),
-					WriteLatency: ((rawDiskUsage.WriteTime - handler.LastSnapshot.LinuxRawDiskUsages[lastDiskUsageIndex].WriteTime) / writesDiff),
-				})
-				// SleepyLogLn("Adding... (name: %s, id: %s, read: %v, write: %v, timeDiff: %v)", disks[matchingDiskIndex].Name, disks[matchingDiskIndex].ID, diskUsage.Read, diskUsage.Write, timeDiff)
 			}
-			message.Disks = diskUsages
-			handler.LastSnapshot.LinuxRawDiskUsages = diskUsagesSnapshot
+			if lastDiskUsageIndex == -1 {
+				continue
+			}
+			matchingDiskIndex := -1
+			for i, disk := range disks {
+				if disk.Name == rawDiskUsage.Name {
+					matchingDiskIndex = i
+				}
+			}
+			if matchingDiskIndex == -1 {
+				continue
+			}
+			readsDiff := rawDiskUsage.Reads - handler.LastSnapshot.RawDiskUsages[lastDiskUsageIndex].Reads
+			if readsDiff <= 0 {
+				readsDiff = 1
+			}
+			writesDiff := rawDiskUsage.Writes - handler.LastSnapshot.RawDiskUsages[lastDiskUsageIndex].Writes
+			if writesDiff <= 0 {
+				writesDiff = 1
+			}
+
+			diskUsages = append(diskUsages, DiskUsage{
+				Parent:       disks[matchingDiskIndex].ID,
+				Read:         ((rawDiskUsage.ReadSectors - handler.LastSnapshot.RawDiskUsages[lastDiskUsageIndex].ReadSectors) * 512) / timeDiff,
+				Write:        ((rawDiskUsage.WriteSectors - handler.LastSnapshot.RawDiskUsages[lastDiskUsageIndex].WriteSectors) * 512) / timeDiff,
+				ReadLatency:  ((rawDiskUsage.ReadTime - handler.LastSnapshot.RawDiskUsages[lastDiskUsageIndex].ReadTime) / readsDiff),
+				WriteLatency: ((rawDiskUsage.WriteTime - handler.LastSnapshot.RawDiskUsages[lastDiskUsageIndex].WriteTime) / writesDiff),
+			})
+			// SleepyLogLn("Adding... (name: %s, id: %s, read: %v, write: %v, timeDiff: %v)", disks[matchingDiskIndex].Name, disks[matchingDiskIndex].ID, diskUsage.Read, diskUsage.Write, timeDiff)
 		}
+		message.Disks = diskUsages
+		handler.LastSnapshot.RawDiskUsages = diskUsagesSnapshot
 	}()
 	wg.Wait()
 

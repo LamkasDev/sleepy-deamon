@@ -1,2 +1,3 @@
 :: Run
-..\bin\sleepy-daemon.exe -config="current.json"
+cd ..\..
+.\dev\bin\sleepy-daemon.exe -config="current.json"

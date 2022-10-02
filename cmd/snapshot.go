@@ -1,17 +1,16 @@
 package main
 
 import (
-	"runtime"
 	"sync"
 	"time"
 )
 
 type HandlerSnapshot struct {
-	Timestamp          time.Time
-	RawCPUUsage        CPUUsageRaw
-	LinuxRawDiskUsages []DiskUsageLinuxRaw
-	NetworkUsage       NetworkUsage
-	ContainerUsages    []ContainerUsage
+	Timestamp       time.Time
+	RawCPUUsage     CPUUsageRaw
+	RawDiskUsages   []DiskUsageRaw
+	NetworkUsage    NetworkUsage
+	ContainerUsages []ContainerUsage
 }
 
 type HandlerCache struct {
@@ -33,9 +32,7 @@ func InitSnapshot(handler *Handler) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		if runtime.GOOS == "linux" {
-			handler.LastSnapshot.LinuxRawDiskUsages = GetDiskUsagesLinux()
-		}
+		handler.LastSnapshot.RawDiskUsages = GetDiskUsages()
 	}()
 	wg.Add(1)
 	go func() {

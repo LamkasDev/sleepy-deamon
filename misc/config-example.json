@@ -4,14 +4,5 @@
     "daemonHost": "daemon.sleepy.lamkas.dev | localhost:9002",
     "apiHost": "api.sleepy.lamkas.dev | localhost:9001",
     "dataHost": "data.sleepy.lamkas.dev | localhost:455",
-    "reconnectTimeout": 5,
-    "databaseCredentials": [
-        {
-            "host": "localhost",
-            "port": "3306",
-            "username": "root",
-            "password": "root",
-            "databases": ["xxx-db"]
-        }
-    ]
+    "reconnectTimeout": 5
 }

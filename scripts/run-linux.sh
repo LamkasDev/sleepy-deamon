@@ -1,3 +1,4 @@
 #!/bin/bash
 # Run
-../bin/sleepy-daemon -config="current.json"
+cd ../..
+./dev/bin/sleepy-daemon -config="current.json"

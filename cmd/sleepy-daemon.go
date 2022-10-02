@@ -17,6 +17,7 @@ import (
 type Handler struct {
 	Directory    string
 	Config       Config
+	Credentials  ConfigCredentials
 	LastSnapshot HandlerSnapshot
 	LastCache    HandlerCache
 	WSMutex      *sync.Mutex
@@ -29,6 +30,7 @@ func CreateHandler(configName string) Handler {
 	var handler Handler
 	handler.Directory, _ = os.Getwd()
 	handler.Config = NewConfig()
+	handler.Credentials = NewConfigCredentials()
 	configRaw, err := os.ReadFile(filepath.Join(handler.Directory, "config", configName))
 	if err != nil {
 		SleepyErrorLn("Failed to read config! Make sure you launched the daemon from the correct folder! (%s)", err.Error())
@@ -40,6 +42,15 @@ func CreateHandler(configName string) Handler {
 		SleepyErrorLn("Failed to parse config! (%s)", err.Error())
 		closeDaemon(&handler)
 		return handler
+	}
+	credentialsRaw, err := os.ReadFile(filepath.Join(handler.Directory, "config", "credentials.json"))
+	if err == nil {
+		err = json.Unmarshal(credentialsRaw, &handler.Credentials)
+		if err != nil {
+			SleepyErrorLn("Failed to parse credentials! (%s)", err.Error())
+			closeDaemon(&handler)
+			return handler
+		}
 	}
 
 	return handler

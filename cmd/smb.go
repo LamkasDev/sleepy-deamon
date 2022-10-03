@@ -10,7 +10,7 @@ import (
 )
 
 func RebuildSmbConfig(handler *Handler, config string) {
-	smbPath := filepath.Join(handler.Directory, "containers", "smb")
+	smbPath := filepath.Join(handler.Directory, "containers", "sleepy-smb")
 	smbDockerPath := filepath.Join(smbPath, "docker-compose.yml")
 
 	if _, err := os.Stat(smbDockerPath); err == nil {

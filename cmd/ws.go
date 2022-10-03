@@ -4,9 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
-	"os"
-	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
@@ -318,23 +315,7 @@ func ProcessWebsocket(handler *Handler, ws *websocket.Conn) error {
 			var message WebsocketBuildSmbConfigMessage
 			_ = json.Unmarshal(messageRaw, &message)
 
-			// TODO: shut down previous docker compose
-
-			// TODO: make this better
-			config := message.Config
-			for _, user := range handler.Credentials.Smb {
-				config = strings.ReplaceAll(config, fmt.Sprintf("%%SMB_USER_%s_PASSWORD%%", user.ID), user.Password)
-			}
-
-			smbPath := filepath.Join(handler.Directory, "containers", "smb")
-			os.MkdirAll(smbPath, 0755)
-			err := os.WriteFile(filepath.Join(smbPath, "docker-compose.yml"), []byte(config), 0644)
-			if err != nil {
-				SleepyWarnLn("Failed to write smb config! (%s)", err.Error())
-				continue
-			}
-
-			// TODO: start new docker compose
+			RebuildSmbConfig(handler, message.Config)
 		}
 	}
 }

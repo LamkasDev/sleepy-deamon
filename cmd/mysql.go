@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
@@ -14,16 +15,19 @@ func CreateBackup(handler *Handler, database string, args ...string) (string, er
 	if executable == "" {
 		return "", errors.New("could not find 'mysqldump'")
 	}
+	dumpPath := filepath.Join(handler.Directory, "dump")
+	os.MkdirAll(dumpPath, 0755)
 
 	for _, credentials := range handler.Credentials.Databases {
 		for _, localDatabase := range credentials.Databases {
 			if localDatabase.ID == database {
-				path := filepath.Join(handler.Directory, "dump", localDatabase.Name+".sql")
+				path := filepath.Join(dumpPath, localDatabase.Name+".sql")
 				cmdArgs := []string{"-h", credentials.Host, "-P", credentials.Port, "-u", credentials.Username, "-p" + credentials.Password}
 				cmdArgs = append(cmdArgs, args...)
 				cmdArgs = append(cmdArgs, localDatabase.Name, "--result-file="+path)
-				err := exec.Command(executable, cmdArgs...).Run()
+				_, err := exec.Command(executable, cmdArgs...).Output()
 				if err != nil {
+					SleepyErrorLn("%v", cmdArgs)
 					return "", err
 				}
 

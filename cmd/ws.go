@@ -165,12 +165,7 @@ type WebsocketBuildSmbConfigMessage struct {
 }
 
 func ConnectWebsocket(handler *Handler) *websocket.Conn {
-	u := url.URL{Host: handler.Config.DaemonHost, Path: "/socket"}
-	if handler.Config.Https {
-		u.Scheme = "wss"
-	} else {
-		u.Scheme = "ws"
-	}
+	u := url.URL{Host: handler.Config.DaemonHost, Path: "/socket", Scheme: "wss"}
 	SleepyLogLn("Connecting to %s...", u.String())
 
 	ws, _, err := websocket.DefaultDialer.Dial(u.String(), nil)

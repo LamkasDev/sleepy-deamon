@@ -1,6 +1,5 @@
 {
     "token": "xxx",
-    "https": false,
     "daemonHost": "daemon.sleepy.lamkas.dev | localhost:9002",
     "apiHost": "api.sleepy.lamkas.dev | localhost:9001",
     "dataHost": "data.sleepy.lamkas.dev | localhost:455",

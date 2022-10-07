@@ -2,7 +2,6 @@ package main
 
 type Config struct {
 	Token            string `json:"token"`
-	Https            bool   `json:"https"`
 	DaemonHost       string `json:"daemonHost"`
 	APIHost          string `json:"apiHost"`
 	DataHost         string `json:"dataHost"`
@@ -11,7 +10,6 @@ type Config struct {
 
 func NewConfig() Config {
 	return Config{
-		Https:            false,
 		DaemonHost:       "localhost:9002",
 		APIHost:          "localhost:9001",
 		DataHost:         "localhost:455",

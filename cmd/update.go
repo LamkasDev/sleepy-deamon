@@ -31,12 +31,7 @@ func Update(handler *Handler, version string) error {
 
 	// Download
 	SleepyLogLn("Downloading archive...")
-	var url string
-	if handler.Config.Https {
-		url = fmt.Sprintf("https://%s/daemons/%s.zip", handler.Config.DataHost, version)
-	} else {
-		url = fmt.Sprintf("http://%s/daemons/%s.zip", handler.Config.DataHost, version)
-	}
+	url := fmt.Sprintf("https://%s/daemons/%s.zip", handler.Config.DataHost, version)
 	err := Download(handler, url, filepath.Join(handler.Directory, "temp", "daemon.zip"), version+".zip")
 	if err != nil {
 		SleepyWarnLn("Failed to download archive! (%s)", err.Error())

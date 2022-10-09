@@ -28,7 +28,7 @@ type Container struct {
 	Creation  int64   `json:"creation"`
 	Ports     string  `json:"ports"`
 	Status    string  `json:"status"`
-	Names     string  `json:"names"`
+	Name      string  `json:"name"`
 	Mounts    string  `json:"mounts"`
 	Networks  string  `json:"networks"`
 	Directory string  `json:"directory"`
@@ -65,7 +65,7 @@ func GetContainersSystem(handler *Handler) ([]Container, []ContainerProject) {
 		return []Container{}, []ContainerProject{}
 	}
 	fields := []string{"ID", "Image", "Ports", "Status", "Names", "Mounts", "Networks"}
-	containersStdout, err := exec.Command("docker", "ps", "--format", GetDockerFormat(fields)).Output()
+	containersStdout, err := exec.Command("docker", "ps", "-a", "--format", GetDockerFormat(fields)).Output()
 	if err != nil {
 		SleepyWarnLn("Failed to get containers! (%s)", err.Error())
 		return []Container{}, []ContainerProject{}
@@ -106,7 +106,7 @@ func GetContainersSystem(handler *Handler) ([]Container, []ContainerProject) {
 			Creation: containerStartedAt.Unix(),
 			Ports:    containerRaw.Ports,
 			Status:   containerDetailed.Status,
-			Names:    containerRaw.Names,
+			Name:     containerRaw.Names,
 			Mounts:   containerRaw.Mounts,
 			Networks: containerRaw.Networks,
 			Log:      containerDetailed.LogPath,

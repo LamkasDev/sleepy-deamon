@@ -118,9 +118,12 @@ func GetContainersSystem(handler *Handler) ([]Container, []ContainerProject) {
 				containerProject = ContainerProject{
 					ID:     id,
 					Name:   *containerDetailed.Labels.Service,
-					Status: "running",
+					Status: "exited",
 					Path:   *containerDetailed.Labels.Directory,
 				}
+			}
+			if container.Status == "running" {
+				containerProject.Status = "running"
 			}
 			containerProjects[id] = containerProject
 			container.Parent = &id

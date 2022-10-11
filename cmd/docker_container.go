@@ -23,6 +23,7 @@ type ContainerRaw struct {
 
 type Container struct {
 	ID        string  `json:"id"`
+	RawID     string  `json:"rawId"`
 	Parent    *string `json:"parent"`
 	Image     string  `json:"image"`
 	Creation  int64   `json:"creation"`
@@ -100,8 +101,13 @@ func GetContainersSystem(handler *Handler) ([]Container, []ContainerProject) {
 			break
 		}
 
+		containerId := handler.Session.ID + containerRaw.Names
+		if containerDetailed.Labels.Service != nil {
+			containerId = containerId + *containerDetailed.Labels.Service
+		}
 		var container Container = Container{
-			ID:       GetMD5Hash(containerRaw.ID),
+			ID:       GetMD5Hash(containerId),
+			RawID:    containerRaw.ID,
 			Image:    containerRaw.Image,
 			Creation: containerStartedAt.Unix(),
 			Ports:    containerRaw.Ports,
@@ -112,11 +118,11 @@ func GetContainersSystem(handler *Handler) ([]Container, []ContainerProject) {
 			Log:      containerDetailed.LogPath,
 		}
 		if containerDetailed.Labels.Directory != nil {
-			id := GetMD5Hash(handler.Session.ID + *containerDetailed.Labels.Service)
-			containerProject, ok := containerProjects[id]
+			projectId := GetMD5Hash(handler.Session.ID + *containerDetailed.Labels.Service)
+			containerProject, ok := containerProjects[projectId]
 			if !ok {
 				containerProject = ContainerProject{
-					ID:     id,
+					ID:     projectId,
 					Name:   *containerDetailed.Labels.Service,
 					Status: "exited",
 					Path:   *containerDetailed.Labels.Directory,
@@ -125,8 +131,8 @@ func GetContainersSystem(handler *Handler) ([]Container, []ContainerProject) {
 			if container.Status == "running" {
 				containerProject.Status = "running"
 			}
-			containerProjects[id] = containerProject
-			container.Parent = &id
+			containerProjects[projectId] = containerProject
+			container.Parent = &projectId
 		}
 		containers = append(containers, container)
 	}

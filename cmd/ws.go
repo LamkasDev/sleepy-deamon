@@ -384,8 +384,8 @@ func GetStatsMessage(handler *Handler) WebsocketRequestStatsReplyMessage {
 		defer wg.Done()
 		networkUsage := GetNetworkUsage()
 		message.Network = NetworkUsage{
-			RX: MathMin((networkUsage.RX-handler.LastSnapshot.NetworkUsage.RX)/int64(timeDiff), 0),
-			TX: MathMin((networkUsage.TX-handler.LastSnapshot.NetworkUsage.TX)/int64(timeDiff), 0),
+			RX: MathMinUint(networkUsage.RX-handler.LastSnapshot.NetworkUsage.RX, 0),
+			TX: MathMinUint(networkUsage.TX-handler.LastSnapshot.NetworkUsage.TX, 0),
 		}
 		handler.LastSnapshot.NetworkUsage = networkUsage
 	}()
@@ -393,7 +393,7 @@ func GetStatsMessage(handler *Handler) WebsocketRequestStatsReplyMessage {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		containerUsagesSnapshot := GetContainerUsages()
+		containerUsagesSnapshot := GetContainerUsages(handler)
 		var containerUsages []ContainerUsage = []ContainerUsage{}
 		for _, containerUsageSnapshot := range containerUsagesSnapshot {
 			lastContainerUsageIndex := -1
@@ -407,12 +407,12 @@ func GetStatsMessage(handler *Handler) WebsocketRequestStatsReplyMessage {
 			}
 			containerUsage := ContainerUsage{
 				Parent: containerUsageSnapshot.Parent,
-				RX:     MathMin((containerUsageSnapshot.RX-handler.LastSnapshot.ContainerUsages[lastContainerUsageIndex].RX)/int64(timeDiff), 0),
-				TX:     MathMin((containerUsageSnapshot.TX-handler.LastSnapshot.ContainerUsages[lastContainerUsageIndex].TX)/int64(timeDiff), 0),
+				RX:     MathMinUint(containerUsageSnapshot.RX-handler.LastSnapshot.ContainerUsages[lastContainerUsageIndex].RX, 0),
+				TX:     MathMinUint(containerUsageSnapshot.TX-handler.LastSnapshot.ContainerUsages[lastContainerUsageIndex].TX, 0),
 				CPU:    containerUsageSnapshot.CPU,
 				Memory: containerUsageSnapshot.Memory,
-				Read:   (containerUsageSnapshot.Read - handler.LastSnapshot.ContainerUsages[lastContainerUsageIndex].Read) / uint64(timeDiff),
-				Write:  (containerUsageSnapshot.Write - handler.LastSnapshot.ContainerUsages[lastContainerUsageIndex].Write) / uint64(timeDiff),
+				Read:   MathMinUint(containerUsageSnapshot.Read-handler.LastSnapshot.ContainerUsages[lastContainerUsageIndex].Read, 0) / uint64(timeDiff),
+				Write:  MathMinUint(containerUsageSnapshot.Write-handler.LastSnapshot.ContainerUsages[lastContainerUsageIndex].Write, 0) / uint64(timeDiff),
 			}
 			containerUsages = append(containerUsages, containerUsage)
 		}

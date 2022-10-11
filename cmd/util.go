@@ -14,7 +14,12 @@ func MathMin(n int64, min int64) int64 {
 	if n < min {
 		return min
 	}
-
+	return n
+}
+func MathMinUint(n uint64, min uint64) uint64 {
+	if n < min {
+		return min
+	}
 	return n
 }
 

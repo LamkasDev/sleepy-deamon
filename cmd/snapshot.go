@@ -42,12 +42,8 @@ func InitSnapshot(handler *Handler) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		handler.LastSnapshot.ContainerUsages = GetContainerUsages()
-	}()
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
 		handler.LastCache.Containers, handler.LastCache.ContainerProjects = GetContainers(handler)
+		handler.LastSnapshot.ContainerUsages = GetContainerUsages(handler)
 	}()
 	wg.Add(1)
 	go func() {

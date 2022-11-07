@@ -7,4 +7,4 @@ go build -o ..\bin\sleepy-daemon.exe .
 cd ..\..
 
 :: Run
-.\dev\bin\sleepy-daemon.exe -config="dev.json"
+.\dev\bin\sleepy-daemon.exe -config="dev.json" -d

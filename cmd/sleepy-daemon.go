@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"log"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime/pprof"
 	"sync"
 	"time"
 
@@ -57,13 +59,28 @@ func CreateHandler(configName string) Handler {
 }
 
 func main() {
+	/* pl := GetProcessList()
+	SleepyLogLn("%v", pl)
+	return */
+
 	// Flags Setup
 	flagConfigName := flag.String("config", "default.json", "a config file")
 	flagVersion := flag.Bool("v", false, "prints current daemon version")
+	flagDebug := flag.Bool("d", false, "runs in debug mode")
 	flag.Parse()
 	if *flagVersion {
 		fmt.Printf("sleepy-daemon v%s\n", DaemonVersion)
 		os.Exit(0)
+	}
+	if *flagDebug {
+		dir, _ := os.Getwd()
+		f, err := os.Create(filepath.Join(dir, "temp", "cpu.prof"))
+		if err != nil {
+			log.Fatal(err)
+			return
+		}
+		pprof.StartCPUProfile(f)
+		SleepyLogLn("Running in debug mode...")
 	}
 
 	// Interrupt Setup
@@ -119,6 +136,7 @@ func main() {
 
 func closeDaemon(handler *Handler) {
 	closeDaemonNoExit(handler)
+	pprof.StopCPUProfile()
 	os.Exit(0)
 }
 

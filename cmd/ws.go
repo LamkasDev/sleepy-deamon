@@ -87,9 +87,10 @@ type WebsocketRequestResourcesReplyMessage struct {
 	Memory            *MemoryState                        `json:"memory"`
 	Software          []WebsocketRequestResourcesSoftware `json:"software"`
 	Disks             []Disk                              `json:"disks"`
-	ZFSPools          []ZFSPool                           `json:"zfsPools"`
+	ZFS               []ZFSPool                           `json:"zfs"`
 	Containers        []Container                         `json:"containers"`
 	ContainerProjects []ContainerProject                  `json:"containerProjects"`
+	ProcessList       []Process                           `json:"processList"`
 }
 
 type WebsocketRequestResourcesSoftware struct {
@@ -342,7 +343,7 @@ func GetResourcesMessage(handler *Handler, resources []string) WebsocketRequestR
 				handler.LastCache.ContainerProjects = message.ContainerProjects
 			case WebsocketResourcesDisksType:
 				message.Disks = GetDisks()
-				message.ZFSPools = GetZFSPools(message.Disks)
+				message.ZFS = GetZFSPools(message.Disks)
 			}
 		}(resource)
 	}

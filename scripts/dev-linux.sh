@@ -6,4 +6,4 @@ cd ../..
 
 # Run
 killall sleepy-daemon
-./dev/bin/sleepy-daemon -config="dev.json"
+./dev/bin/sleepy-daemon -config="dev.json" -d

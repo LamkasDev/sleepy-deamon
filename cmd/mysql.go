@@ -15,7 +15,7 @@ func CreateBackup(handler *Handler, database string, args ...string) (string, er
 	if executable == "" {
 		return "", errors.New("could not find 'mysqldump'")
 	}
-	dumpPath := filepath.Join(handler.Directory, "dump")
+	dumpPath := filepath.Join(handler.Directory, "temp")
 	os.MkdirAll(dumpPath, 0755)
 
 	for _, credentials := range handler.Credentials.Databases {

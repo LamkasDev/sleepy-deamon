@@ -28,41 +28,43 @@ type Handler struct {
 	LogManager   DaemonLogManager
 }
 
+func ReadConfig(handler *Handler, name string, target any, def any) bool {
+	path := filepath.Join(handler.Directory, "config", name)
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		SleepyWarnLn("%s not found, creating default one...", name)
+		raw, _ = json.Marshal(def)
+		os.WriteFile(path, raw, 0755)
+	}
+	err = json.Unmarshal(raw, target)
+	if err != nil {
+		SleepyErrorLn("Failed to parse %s! (%s)", name, err.Error())
+		closeDaemon(handler)
+		return false
+	}
+
+	return true
+}
+
 func CreateHandler(configName string) Handler {
 	var handler Handler
 	handler.Directory, _ = os.Getwd()
 	handler.Config = NewConfig()
 	handler.Credentials = NewConfigCredentials()
-	configRaw, err := os.ReadFile(filepath.Join(handler.Directory, "config", configName))
-	if err != nil {
-		SleepyErrorLn("Failed to read config! Make sure you launched the daemon from the correct folder! (%s)", err.Error())
-		closeDaemon(&handler)
+	os.MkdirAll(filepath.Join(handler.Directory, "config"), 0755)
+	os.MkdirAll(filepath.Join(handler.Directory, "temp"), 0755)
+
+	if !ReadConfig(&handler, configName, &handler.Config, NewConfig()) {
 		return handler
 	}
-	err = json.Unmarshal(configRaw, &handler.Config)
-	if err != nil {
-		SleepyErrorLn("Failed to parse config! (%s)", err.Error())
-		closeDaemon(&handler)
+	if !ReadConfig(&handler, "credentials.json", &handler.Credentials, NewConfigCredentials()) {
 		return handler
-	}
-	credentialsRaw, err := os.ReadFile(filepath.Join(handler.Directory, "config", "credentials.json"))
-	if err == nil {
-		err = json.Unmarshal(credentialsRaw, &handler.Credentials)
-		if err != nil {
-			SleepyErrorLn("Failed to parse credentials! (%s)", err.Error())
-			closeDaemon(&handler)
-			return handler
-		}
 	}
 
 	return handler
 }
 
 func main() {
-	/* pl := GetProcessList()
-	SleepyLogLn("%v", pl)
-	return */
-
 	// Flags Setup
 	flagConfigName := flag.String("config", "default.json", "a config file")
 	flagVersion := flag.Bool("v", false, "prints current daemon version")
@@ -72,16 +74,6 @@ func main() {
 		fmt.Printf("sleepy-daemon v%s\n", DaemonVersion)
 		os.Exit(0)
 	}
-	if *flagDebug {
-		dir, _ := os.Getwd()
-		f, err := os.Create(filepath.Join(dir, "temp", "cpu.prof"))
-		if err != nil {
-			log.Fatal(err)
-			return
-		}
-		pprof.StartCPUProfile(f)
-		SleepyLogLn("Running in debug mode...")
-	}
 
 	// Interrupt Setup
 	interrupt := make(chan os.Signal, 1)
@@ -89,6 +81,17 @@ func main() {
 
 	// Handler
 	handler := CreateHandler(*flagConfigName)
+
+	// Setup profiling
+	if *flagDebug {
+		f, err := os.Create(filepath.Join(handler.Directory, "temp", "cpu.prof"))
+		if err != nil {
+			log.Fatal(err)
+			return
+		}
+		pprof.StartCPUProfile(f)
+		SleepyLogLn("Running in debug mode...")
+	}
 
 	// Websocket
 	var ws *websocket.Conn

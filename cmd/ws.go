@@ -80,6 +80,7 @@ const (
 	WebsocketResourcesGeneralType    string = "GENERAL"
 	WebsocketResourcesContainersType string = "CONTAINERS"
 	WebsocketResourcesDisksType      string = "DISKS"
+	WebsocketResourcesProcessesType  string = "PROCESSES"
 )
 
 type WebsocketRequestResourcesReplyMessage struct {
@@ -90,7 +91,7 @@ type WebsocketRequestResourcesReplyMessage struct {
 	ZFS               []ZFSPool                           `json:"zfs"`
 	Containers        []Container                         `json:"containers"`
 	ContainerProjects []ContainerProject                  `json:"containerProjects"`
-	ProcessList       []Process                           `json:"processList"`
+	Processes         []Process                           `json:"processes"`
 }
 
 type WebsocketRequestResourcesSoftware struct {
@@ -344,6 +345,8 @@ func GetResourcesMessage(handler *Handler, resources []string) WebsocketRequestR
 			case WebsocketResourcesDisksType:
 				message.Disks = GetDisks()
 				message.ZFS = GetZFSPools(message.Disks)
+			case WebsocketResourcesProcessesType:
+				message.Processes = GetProcesses()
 			}
 		}(resource)
 	}

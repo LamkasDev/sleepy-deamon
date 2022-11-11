@@ -3,6 +3,6 @@
 
 package main
 
-func GetProcessListSystem() []Process {
+func GetProcessesSystem() []Process {
 	return []Process{}
 }

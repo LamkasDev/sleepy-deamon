@@ -22,17 +22,23 @@ type ProcessMemoryUsageWindowsRaw struct {
 	PeakPagefileUsage          uint64
 }
 
-func GetProcessListSystem() []Process {
-	var processListRaw [512]uint64
+func GetProcessesSystem() []Process {
+	/* handle, err := syscall.GetCurrentProcess()
+	if err != nil {
+		SleepyErrorLn("Failed to get handle to current process! (%s)", err.Error())
+		return []Process{}
+	} */
+
+	var processesRaw [512]uint64
 	var listBytes uint64
-	ret, _, err := enumProcesses.Call(uintptr(unsafe.Pointer(&processListRaw)), unsafe.Sizeof(processListRaw), uintptr(unsafe.Pointer(&listBytes)))
+	ret, _, err := enumProcesses.Call(uintptr(unsafe.Pointer(&processesRaw)), unsafe.Sizeof(processesRaw), uintptr(unsafe.Pointer(&listBytes)))
 	if ret == 0 {
 		SleepyErrorLn("Failed to get process list! (%s)", err.Error())
 		return []Process{}
 	}
 
-	processList := make(map[string]Process)
-	for _, pid := range processListRaw {
+	processes := make(map[string]Process)
+	for _, pid := range processesRaw {
 		// Get process handle
 		if pid == 0 {
 			continue
@@ -65,6 +71,23 @@ func GetProcessListSystem() []Process {
 			continue
 		}
 		modName := string(modNameRaw[:])
+		/* var modPathRaw [2048]byte
+		ret, _, err = getModuleFileName.Call(prHandle, modules[0], uintptr(unsafe.Pointer(&modPathRaw)), 2048)
+		if ret == 0 {
+			SleepyErrorLn("Failed to get base module path! (%s)", err.Error())
+			continue
+		}
+		modPath := string(modPathRaw[:]) */
+
+		// Get icon
+		/* iconPathRaw := modPathRaw
+		iconIndex := uint16(0)
+		ret, _, err = extractIcon.Call(uintptr(handle), uintptr(unsafe.Pointer(&iconPathRaw)), uintptr(unsafe.Pointer(&iconIndex)))
+		if ret == 0 {
+			SleepyErrorLn("Failed to get process icon! (%s)", err.Error())
+			continue
+		}
+		iconPath := string(iconPathRaw[:]) */
 
 		// Get memory usage
 		var memory ProcessMemoryUsageWindowsRaw
@@ -74,19 +97,17 @@ func GetProcessListSystem() []Process {
 			continue
 		}
 
-		process, ok := processList[modName]
+		process, ok := processes[modName]
 		if !ok {
 			process = Process{
-				Name: modName,
-				Memory: MemoryUsage{
-					Used:     0,
-					SwapUsed: 0,
-				},
+				Name:      modName,
+				Instances: 0,
+				Memory:    0,
 			}
 		}
-		process.Memory.Used += float32(memory.WorkingSetSize - memory.PagefileUsage)
-		process.Memory.SwapUsed += float32(memory.PagefileUsage)
-		processList[modName] = process
+		process.Instances++
+		process.Memory += memory.WorkingSetSize + memory.PagefileUsage
+		processes[modName] = process
 	}
-	return maps.Values(processList)
+	return maps.Values(processes)
 }

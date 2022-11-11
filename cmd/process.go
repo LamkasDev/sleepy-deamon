@@ -3,14 +3,15 @@ package main
 import "runtime"
 
 type Process struct {
-	Name   string
-	Memory MemoryUsage
+	Name      string `json:"name"`
+	Instances uint16 `json:"instances"`
+	Memory    uint64 `json:"memory"`
 }
 
-func GetProcessList() []Process {
+func GetProcesses() []Process {
 	switch runtime.GOOS {
 	case "windows":
-		return GetProcessListSystem()
+		return GetProcessesSystem()
 	default:
 		return []Process{}
 	}

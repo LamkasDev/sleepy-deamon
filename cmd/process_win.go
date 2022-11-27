@@ -4,6 +4,7 @@
 package main
 
 import (
+	"strings"
 	"unsafe"
 
 	"golang.org/x/exp/maps"
@@ -70,7 +71,7 @@ func GetProcessesSystem() []Process {
 			SleepyErrorLn("Failed to get base module name! (%s)", err.Error())
 			continue
 		}
-		modName := string(modNameRaw[:])
+		modName := strings.TrimRight(string(modNameRaw[:]), "\x00")
 		/* var modPathRaw [2048]byte
 		ret, _, err = getModuleFileName.Call(prHandle, modules[0], uintptr(unsafe.Pointer(&modPathRaw)), 2048)
 		if ret == 0 {

@@ -139,3 +139,77 @@ func GetContainersSystem(handler *Handler) ([]Container, []ContainerProject) {
 
 	return containers, maps.Values(containerProjects)
 }
+
+func ProcessActionOnContainer(handler *Handler, container Container, action string) {
+	switch action {
+	case ContainerActionStart:
+		_, err := exec.Command("docker", "start", container.RawID).Output()
+		if err != nil {
+			SleepyErrorLn("Failed to start container! (%s)", err.Error())
+			return
+		}
+	case ContainerActionStop:
+		_, err := exec.Command("docker", "stop", container.RawID).Output()
+		if err != nil {
+			SleepyErrorLn("Failed to stop container! (%s)", err.Error())
+			return
+		}
+	case ContainerActionBuild:
+		return
+	case ContainerActionRemove:
+		_, err := exec.Command("docker", "rm", container.RawID).Output()
+		if err != nil {
+			SleepyErrorLn("Failed to remove container! (%s)", err.Error())
+			return
+		}
+	case ContainerActionRestart:
+		ProcessActionOnContainer(handler, container, ContainerActionStop)
+		ProcessActionOnContainer(handler, container, ContainerActionStart)
+	case ContainerActionRebuild:
+		return
+	}
+}
+
+func ProcessActionOnContainerProject(handler *Handler, containerProject ContainerProject, action string) {
+	switch action {
+	case ContainerActionStart:
+		cmd := exec.Command("docker-compose", "up", "-d")
+		cmd.Dir = containerProject.Path
+		_, err := cmd.Output()
+		if err != nil {
+			SleepyErrorLn("Failed to start container project! (%s)", err.Error())
+			return
+		}
+	case ContainerActionStop:
+		cmd := exec.Command("docker-compose", "down")
+		cmd.Dir = containerProject.Path
+		_, err := cmd.Output()
+		if err != nil {
+			SleepyErrorLn("Failed to start container project! (%s)", err.Error())
+			return
+		}
+	case ContainerActionBuild:
+		cmd := exec.Command("docker-compose", "build")
+		cmd.Dir = containerProject.Path
+		_, err := cmd.Output()
+		if err != nil {
+			SleepyErrorLn("Failed to build container project! (%s)", err.Error())
+			return
+		}
+	case ContainerActionRemove:
+		cmd := exec.Command("docker-compose", "rm", "--stop")
+		cmd.Dir = containerProject.Path
+		_, err := cmd.Output()
+		if err != nil {
+			SleepyErrorLn("Failed to remove container project! (%s)", err.Error())
+			return
+		}
+	case ContainerActionRestart:
+		ProcessActionOnContainerProject(handler, containerProject, ContainerActionStop)
+		ProcessActionOnContainerProject(handler, containerProject, ContainerActionStart)
+	case ContainerActionRebuild:
+		ProcessActionOnContainerProject(handler, containerProject, ContainerActionStop)
+		ProcessActionOnContainerProject(handler, containerProject, ContainerActionBuild)
+		ProcessActionOnContainerProject(handler, containerProject, ContainerActionStart)
+	}
+}

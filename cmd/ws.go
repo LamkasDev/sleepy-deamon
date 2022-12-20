@@ -30,6 +30,8 @@ const (
 	WebsocketMessageTypeDisconnectContainerLog string = "DAEMON_DISCONNECT_CONTAINER_LOG"
 	WebsocketMessageTypeContainerLogMessage    string = "DAEMON_CONTAINER_LOG_MESSAGE"
 
+	WebsocketMessageTypeRequestContainerAction string = "DAEMON_REQUEST_CONTAINER_ACTION"
+
 	WebsocketMessageTypeBuildSmbConfig string = "DAEMON_BUILD_SMB_CONFIG"
 )
 
@@ -46,6 +48,21 @@ type Session struct {
 type WebsocketMessage struct {
 	Type string `json:"type"`
 }
+
+const (
+	TaskStatusRunning  string = "RUNNING"
+	TaskStatusFailed   string = "FAILED"
+	TaskStatusFinished string = "FINISHED"
+)
+
+const (
+	ContainerActionStart   string = "START"
+	ContainerActionStop    string = "STOP"
+	ContainerActionBuild   string = "BUILD"
+	ContainerActionRemove  string = "REMOVE"
+	ContainerActionRestart string = "RESTART"
+	ContainerActionRebuild string = "REBUILD"
+)
 
 type WebsocketAuthMessage struct {
 	Type      string   `json:"type"`
@@ -116,12 +133,6 @@ type WebsocketRequestStatsReplyMessage struct {
 	Containers []ContainerUsage `json:"containers"`
 }
 
-const (
-	TaskStatusRunning  string = "RUNNING"
-	TaskStatusFailed   string = "FAILED"
-	TaskStatusFinished string = "FINISHED"
-)
-
 type WebsocketTaskProgressMessage struct {
 	Type     string  `json:"type"`
 	ID       string  `json:"id"`
@@ -159,6 +170,12 @@ type WebsocketContainerLogMessageMessage struct {
 	Type    string `json:"type"`
 	ID      string `json:"id"`
 	Message string `json:"message"`
+}
+
+type WebsocketRequestContainerActionMessage struct {
+	Type   string `json:"type"`
+	ID     string `json:"id"`
+	Action string `json:"action"`
 }
 
 type WebsocketBuildSmbConfigMessage struct {
@@ -308,6 +325,20 @@ func ProcessWebsocket(handler *Handler, ws *websocket.Conn) error {
 			_ = json.Unmarshal(messageRaw, &message)
 
 			DisconnectContainerLogger(handler, message.ID)
+		case WebsocketMessageTypeRequestContainerAction:
+			var message WebsocketRequestContainerActionMessage
+			_ = json.Unmarshal(messageRaw, &message)
+
+			for _, container := range handler.LastCache.Containers {
+				if container.ID == message.ID {
+					ProcessActionOnContainer(handler, container, message.Action)
+				}
+			}
+			for _, containerProject := range handler.LastCache.ContainerProjects {
+				if containerProject.ID == message.ID {
+					ProcessActionOnContainerProject(handler, containerProject, message.Action)
+				}
+			}
 		case WebsocketMessageTypeBuildSmbConfig:
 			var message WebsocketBuildSmbConfigMessage
 			_ = json.Unmarshal(messageRaw, &message)

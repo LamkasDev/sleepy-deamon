@@ -32,7 +32,8 @@ const (
 
 	WebsocketMessageTypeRequestContainerAction string = "DAEMON_REQUEST_CONTAINER_ACTION"
 
-	WebsocketMessageTypeBuildSmbConfig string = "DAEMON_BUILD_SMB_CONFIG"
+	WebsocketMessageTypeBuildSmbConfig   string = "DAEMON_BUILD_SMB_CONFIG"
+	WebsocketMessageTypeBuildNginxConfig string = "DAEMON_BUILD_NGINX_CONFIG"
 )
 
 const (
@@ -180,6 +181,21 @@ type WebsocketRequestContainerActionMessage struct {
 
 type WebsocketBuildSmbConfigMessage struct {
 	Type   string `json:"type"`
+	Config string `json:"config"`
+}
+
+type WebsocketBuildNginxConfigMessage struct {
+	Type        string                    `json:"type"`
+	Config      string                    `json:"config"`
+	Dockerfile  string                    `json:"dockerfile"`
+	NginxConfig string                    `json:"nginxConfig"`
+	Servers     []NginxConfigServerConfig `json:"servers"`
+	Networks    []string                  `json:"networks"`
+}
+type NginxConfigServerConfig struct {
+	Name   string `json:"name"`
+	Domain string `json:"domain"`
+	Ssl    string `json:"ssl"`
 	Config string `json:"config"`
 }
 
@@ -344,6 +360,11 @@ func ProcessWebsocket(handler *Handler, ws *websocket.Conn) error {
 			_ = json.Unmarshal(messageRaw, &message)
 
 			RebuildSmbConfig(handler, message.Config)
+		case WebsocketMessageTypeBuildNginxConfig:
+			var message WebsocketBuildNginxConfigMessage
+			_ = json.Unmarshal(messageRaw, &message)
+
+			RebuildNginxConfig(handler, message)
 		}
 	}
 }

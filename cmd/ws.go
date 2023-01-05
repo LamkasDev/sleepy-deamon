@@ -461,14 +461,19 @@ func GetStatsMessage(handler *Handler) WebsocketRequestStatsReplyMessage {
 			if lastContainerUsageIndex == -1 {
 				continue
 			}
+			lastRX := MathMinZeroUint(containerUsageSnapshot.RX, handler.LastSnapshot.ContainerUsages[lastContainerUsageIndex].RX)
+			lastTX := MathMinZeroUint(containerUsageSnapshot.TX, handler.LastSnapshot.ContainerUsages[lastContainerUsageIndex].TX)
+			lastRead := MathMinZeroUint(containerUsageSnapshot.Read, handler.LastSnapshot.ContainerUsages[lastContainerUsageIndex].Read)
+			lastWrite := MathMinZeroUint(containerUsageSnapshot.Write, handler.LastSnapshot.ContainerUsages[lastContainerUsageIndex].Write)
+
 			containerUsage := ContainerUsage{
 				Parent: containerUsageSnapshot.Parent,
-				RX:     MathMinUint(containerUsageSnapshot.RX-handler.LastSnapshot.ContainerUsages[lastContainerUsageIndex].RX, 0),
-				TX:     MathMinUint(containerUsageSnapshot.TX-handler.LastSnapshot.ContainerUsages[lastContainerUsageIndex].TX, 0),
+				RX:     containerUsageSnapshot.RX - lastRX,
+				TX:     containerUsageSnapshot.TX - lastTX,
 				CPU:    containerUsageSnapshot.CPU,
 				Memory: containerUsageSnapshot.Memory,
-				Read:   MathMinUint(containerUsageSnapshot.Read-handler.LastSnapshot.ContainerUsages[lastContainerUsageIndex].Read, 0) / uint64(timeDiff),
-				Write:  MathMinUint(containerUsageSnapshot.Write-handler.LastSnapshot.ContainerUsages[lastContainerUsageIndex].Write, 0) / uint64(timeDiff),
+				Read:   (containerUsageSnapshot.Read - lastRead) / uint64(timeDiff),
+				Write:  (containerUsageSnapshot.Write - lastWrite) / uint64(timeDiff),
 			}
 			containerUsages = append(containerUsages, containerUsage)
 		}

@@ -22,6 +22,12 @@ func MathMinUint(n uint64, min uint64) uint64 {
 	}
 	return n
 }
+func MathMinZeroUint(n uint64, min uint64) uint64 {
+	if n < min {
+		return 0
+	}
+	return n
+}
 
 func ArrayMap[I any, O any, F func(I) O](array []I, mapFunc F) []O {
 	res := []O{}

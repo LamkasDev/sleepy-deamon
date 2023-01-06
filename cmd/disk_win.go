@@ -5,6 +5,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"os/exec"
 	"strconv"
 	"sync"
@@ -31,8 +32,10 @@ type PartitionWindowsRaw struct {
 }
 
 type VolumeWindowsRaw struct {
-	DriveLetter   *string
-	SizeRemaining uint64
+	DriveLetter     *string
+	FileSystem      *string
+	FileSystemLabel string
+	SizeRemaining   uint64
 }
 
 func GetDisksSystem() []Disk {
@@ -112,6 +115,7 @@ func GetDisksSystem() []Disk {
 				Size:       partRaw.Size,
 				Used:       nil,
 				Mountpoint: partRaw.DriveLetter,
+				Flags:      0,
 			}
 			if partRaw.Guid == nil {
 				// Hope this works, windows's ids are shit
@@ -132,8 +136,15 @@ func GetDisksSystem() []Disk {
 					}
 				}
 				if matchingVolumeIndex != -1 {
+					if volumesRaw[matchingVolumeIndex].FileSystemLabel != "" {
+						part.Name = fmt.Sprintf("%s (%s)", volumesRaw[matchingVolumeIndex].FileSystemLabel, *partRaw.DriveLetter)
+					}
+					part.Type = volumesRaw[matchingVolumeIndex].FileSystem
 					part.Used = &volumesRaw[matchingVolumeIndex].SizeRemaining
 				}
+			}
+			if partRaw.IsBoot {
+				part.Flags |= PartitionFlagBoot
 			}
 
 			disk.Children = append(disk.Children, part)

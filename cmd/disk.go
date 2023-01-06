@@ -24,7 +24,10 @@ type Partition struct {
 	Size       uint64  `json:"size"`
 	Used       *uint64 `json:"used"`
 	Mountpoint *string `json:"mountpoint"`
+	Flags      uint32  `json:"flags"`
 }
+
+const PartitionFlagBoot = 1
 
 func GetDisks() []Disk {
 	switch runtime.GOOS {

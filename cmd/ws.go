@@ -102,19 +102,14 @@ const (
 )
 
 type WebsocketRequestResourcesReplyMessage struct {
-	Type              string                              `json:"type"`
-	Memory            *MemoryState                        `json:"memory"`
-	Software          []WebsocketRequestResourcesSoftware `json:"software"`
-	Disks             []Disk                              `json:"disks"`
-	ZFS               []ZFSPool                           `json:"zfs"`
-	Containers        []Container                         `json:"containers"`
-	ContainerProjects []ContainerProject                  `json:"containerProjects"`
-	Processes         []Process                           `json:"processes"`
-}
-
-type WebsocketRequestResourcesSoftware struct {
-	Name    string `json:"name"`
-	Version string `json:"version"`
+	Type              string             `json:"type"`
+	Memory            *MemoryState       `json:"memory"`
+	Software          []Software         `json:"software"`
+	Disks             []Disk             `json:"disks"`
+	ZFS               []ZFSPool          `json:"zfs"`
+	Containers        []Container        `json:"containers"`
+	ContainerProjects []ContainerProject `json:"containerProjects"`
+	Processes         []Process          `json:"processes"`
 }
 
 type WebsocketRequestDatabaseBackupMessage struct {
@@ -383,13 +378,7 @@ func GetResourcesMessage(handler *Handler, resources []string) WebsocketRequestR
 			case WebsocketResourcesGeneralType:
 				memory, _ := GetMemoryDetails()
 				message.Memory = &memory
-				message.Software = []WebsocketRequestResourcesSoftware{}
-				zfs := GetZFSVersion()
-				if zfs != nil {
-					message.Software = append(message.Software,
-						WebsocketRequestResourcesSoftware{"zfs", *zfs},
-					)
-				}
+				message.Software = GetInstalledSoftware()
 			case WebsocketResourcesContainersType:
 				message.Containers, message.ContainerProjects = GetContainers(handler)
 				handler.LastCache.Containers = message.Containers

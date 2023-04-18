@@ -39,10 +39,12 @@ func GetContainerUsagesSystem(handler *Handler) []ContainerUsage {
 	}
 	containerUsagesStdoutMod := strings.ReplaceAll(string(containerUsagesStdout), "\n", ",")
 	var containerUsagesRaw []ContainerUsageRaw
-	err = json.Unmarshal([]byte(fmt.Sprintf("[%s]", containerUsagesStdoutMod[:len(containerUsagesStdoutMod)-1])), &containerUsagesRaw)
-	if err != nil {
-		SleepyWarnLn("Failed to parse container usages! (%s)", err.Error())
-		return []ContainerUsage{}
+	if len(containerUsagesStdoutMod) > 2 {
+		err = json.Unmarshal([]byte(fmt.Sprintf("[%s]", containerUsagesStdoutMod[:len(containerUsagesStdoutMod)-1])), &containerUsagesRaw)
+		if err != nil {
+			SleepyWarnLn("Failed to parse container usages! (%s)", err.Error())
+			return []ContainerUsage{}
+		}
 	}
 
 	containerUsages := []ContainerUsage{}

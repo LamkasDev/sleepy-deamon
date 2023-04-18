@@ -73,10 +73,12 @@ func GetContainersSystem(handler *Handler) ([]Container, []ContainerProject) {
 	}
 	containersStdoutMod := strings.ReplaceAll(string(containersStdout), "\n", ",")
 	var containersRaw []ContainerRaw
-	err = json.Unmarshal([]byte(fmt.Sprintf("[%s]", containersStdoutMod[:len(containersStdoutMod)-1])), &containersRaw)
-	if err != nil {
-		SleepyWarnLn("Failed to parse containers! (%s)", err.Error())
-		return []Container{}, []ContainerProject{}
+	if len(containersStdoutMod) > 2 {
+		err = json.Unmarshal([]byte(fmt.Sprintf("[%s]", containersStdoutMod[:len(containersStdoutMod)-1])), &containersRaw)
+		if err != nil {
+			SleepyWarnLn("Failed to parse containers! (%s)", err.Error())
+			return []Container{}, []ContainerProject{}
+		}
 	}
 
 	// TODO: use coroutines
